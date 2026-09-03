@@ -3,16 +3,16 @@ from typing import Any, Callable
 from gymnasium.wrappers import FlattenObservation
 from highway_env.envs import HighwayEnvFast
 
-from projection.args import get_args, parse_eval_freq
-from projection.callbacks import make_callbacks
+from transformation.args import get_args, parse_eval_freq
+from transformation.callbacks import make_callbacks
 from gymnasium.envs.classic_control import CartPoleEnv
 from gymnasium.envs.mujoco.inverted_pendulum_v5 import InvertedPendulumEnv
 from torch.optim import SGD, Adam, AdamW, Optimizer, RMSprop
 
 import wandb
-from projection.benchmarks.inverted_pendulum_hard import InvertedPendulumHard
-from projection.benchmarks.projected_env_benchmark import ProjectedEnvBenchmark
-from projection.common import make_logger, model_weight_path
+from transformation.benchmarks.inverted_pendulum_hard import InvertedPendulumHard
+from transformation.benchmarks.transformed_env_benchmark import TransformedEnvBenchmark
+from transformation.common import make_logger, model_weight_path
 from stable_baselines3.common.type_aliases import GymEnv
 from stable_baselines3.continual import ContinualLearning
 from stable_baselines3.ddpg.ddpg_aegem import DDPG_AEGEM
@@ -63,11 +63,11 @@ def get_benchmark(
     benchmark: list[str],
     seed: int,
     encode: bool = True,
-) -> ProjectedEnvBenchmark:
+) -> TransformedEnvBenchmark:
     env_cls, time_limit = ENV_REGISTRY[env]
     versions = [int(v.strip("V")) for v in benchmark]
 
-    return ProjectedEnvBenchmark(
+    return TransformedEnvBenchmark(
         env_cls,
         versions,
         encode,
@@ -383,7 +383,7 @@ def _build_ddpg(
 
 
 def train_continual(
-    benchmark: ProjectedEnvBenchmark,
+    benchmark: TransformedEnvBenchmark,
     envs_train: list[GymEnv],
     envs_test: list[GymEnv],
     model: ContinualLearning,
@@ -437,7 +437,7 @@ def train_continual(
 
 
 def train_multitask(
-    benchmark: ProjectedEnvBenchmark,
+    benchmark: TransformedEnvBenchmark,
     envs_train: list[GymEnv],
     envs_test: list[GymEnv],
     model: ContinualLearning,

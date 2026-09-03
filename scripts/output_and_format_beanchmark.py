@@ -1,4 +1,4 @@
-from projection.benchmarks.projected_env_benchmark import random_orthogonal, PERMUTATION_SEEDS
+from transformation.benchmarks.transformed_env_benchmark import random_orthogonal, PERMUTATION_SEEDS
 
 BENCHMARK_EASY = [1, 2, 3]
 BENCHMARK_HARD = [2, 8, 9]

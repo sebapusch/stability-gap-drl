@@ -2,7 +2,7 @@ import numpy as np
 from gymnasium import Env
 from gymnasium.wrappers import TimeLimit
 
-from projection.benchmarks.wrappers import (
+from transformation.benchmarks.wrappers import (
     ObsLinearTransform,
     ObsSpaceInf,
     OneHotWrapper,
@@ -26,7 +26,7 @@ def random_orthogonal(
     return q, b
 
 
-class ProjectedEnvBenchmark:
+class TransformedEnvBenchmark:
     def __init__(
         self,
         env_class: type[Env],

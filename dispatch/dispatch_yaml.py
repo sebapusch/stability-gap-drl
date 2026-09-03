@@ -67,7 +67,7 @@ def process_yaml(yaml_path, dry):
 
         sbatch_time = curr_config.pop("time", "03:00:00")
         sbatch_memo = curr_config.pop("mem", None)
-        setting = curr_config.pop("setting", "projection")
+        setting = curr_config.pop("setting", "transformation")
 
         final_args = {}
         for k, v in curr_config.items():

@@ -16,7 +16,7 @@ ActorDistLoss = Callable[[th.Tensor, th.Tensor, th.Tensor, th.Tensor], th.Tensor
 
 
 class SAC_AEGEM(SAC_FineTune):
-    """SAC with actor-only A-GEM projection from expert-buffer gradients."""
+    """SAC with actor-only A-GEM transformation from expert-buffer gradients."""
 
     def __init__(
         self,

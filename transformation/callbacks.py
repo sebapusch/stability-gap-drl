@@ -3,8 +3,13 @@ from __future__ import annotations
 from typing import Any, Callable
 
 import numpy as np
+import torch
 import wandb
+from highway_env.vehicle.uncertainty import prediction
 from wandb.integration.sb3 import WandbCallback
+
+from transformation.benchmarks.transformed_env_benchmark import TransformedEnvBenchmark
+from stable_baselines3 import DQN
 from stable_baselines3.common.callbacks import (EventCallback,
                                                 BaseCallback,
                                                 CallbackList,
@@ -12,16 +17,15 @@ from stable_baselines3.common.callbacks import (EventCallback,
                                                 evaluate_policy)
 from stable_baselines3.common.type_aliases import GymEnv
 
-from continual_world.benchmark import make_mt1
-
 
 def make_callbacks(
-        benchmark: list[str],
+        benchmark: TransformedEnvBenchmark,
         envs_test: list[GymEnv],
-        eval_freq: int,
+        eval_freq: int | list[tuple[int, int]],
         n_eval_episodes: int,
         video_freq: int,
         eval_all: bool,
+        q_net_track_freq: int | list[tuple[int, int]],
 ) -> Callable[[int], CallbackList]:
     wandb_callback = WandbCallback(gradient_save_freq=1000, verbose=2)
 
@@ -34,21 +38,29 @@ def make_callbacks(
         callbacks: list[BaseCallback] = [wandb_callback]
 
         if video_freq > 0:
-            video_env = make_mt1(
-                benchmark[env_ix], seed=42, render_mode='rgb_array', task_ix=env_ix, num_tasks=len(envs_test)
-            )
+            video_env = benchmark.make_single(benchmark.benchmark[env_ix], test=True, render_mode='rgb_array')
             callbacks.append(
                 RegisterVideoCallback(video_freq, video_env),
             )
 
-        rng = range(len(benchmark) if eval_all else env_ix + 1 )
+        track_q_net = isinstance(q_net_track_freq, list) or q_net_track_freq > 0
+
+        rng = range(len(benchmark) if eval_all else env_ix + 1)
         for i in rng:
             callbacks.append(
                 EnvEvalCallback(
-                    eval_id=benchmark[i],
+                    eval_id=f'V{benchmark.benchmark[i]}',
                     eval_env=envs_test[i],
                     eval_freq=eval_freq,
                     n_eval_episodes=n_eval_episodes,
+                )
+            )
+            if not track_q_net: continue
+            callbacks.append(
+                TrackQNet(
+                    f'V{benchmark.benchmark[i]}',
+                    envs_test[i],
+                    q_net_track_freq,
                 )
             )
 
@@ -81,6 +93,9 @@ class EnvEvalCallback(EventCallback):
         self.best_mean_reward = 0.0
         self.verbose = verbose
         self.cur_eval_freq_ix = 0
+
+        if isinstance(self.eval_freq, list):
+            assert len(self.eval_freq) > 0
 
     def _log_success_callback(self, locals_: dict[str, Any], _: dict[str, Any]) -> None:
         """
@@ -135,11 +150,11 @@ class EnvEvalCallback(EventCallback):
         self.logger.record(f'eval/{self.eval_id}/mean_reward', float(mean_reward))
         self.logger.record(f'eval/{self.eval_id}/mean_ep_length', mean_ep_length)
 
-        if len(self._is_success_buffer) == 0:
-            print('WARNING: Success buffer is empty, unable to compute success rate')
-        else:
-            success_rate = np.mean(self._is_success_buffer)
-            self.logger.record(f'eval/{self.eval_id}/success_rate', success_rate)
+        # if len(self._is_success_buffer) == 0:
+        #     print('WARNING: Success buffer is empty, unable to compute success rate')
+        # else:
+        #     success_rate = np.mean(self._is_success_buffer)
+        #     self.logger.record(f'eval/{self.eval_id}/success_rate', success_rate)
 
         # Dump log so the evaluation results are printed with the correct timestep
         self.logger.record(f"time/{self.eval_id}/total_timesteps", self.num_timesteps, exclude="tensorboard")
@@ -168,11 +183,51 @@ class EnvEvalCallback(EventCallback):
         else:
             max_step, freq = self.eval_freq[self.cur_eval_freq_ix]
 
-            if max_step == self.n_calls and self.cur_eval_freq_ix < len(self.eval_freq) - 1:
+            if max_step == self.num_timesteps and self.cur_eval_freq_ix < len(self.eval_freq) - 1:
                 self.cur_eval_freq_ix += 1
 
 
-        return freq > 0 and self.n_calls % freq == 0
+        return freq > 0 and self.num_timesteps % freq == 0
+
+
+class TrackQNet(EventCallback):
+    model: DQN
+
+    def __init__(
+        self,
+        eval_id: str,
+        env: GymEnv,
+        eval_freq: int | list[tuple[int, int]],
+    ) -> None:
+        super().__init__()
+
+        self.initial_state = torch.tensor(env.reset()[0]).unsqueeze(0)
+        self.eval_freq = eval_freq
+        self.cur_eval_freq_ix = 0
+        self.eval_id = eval_id
+
+    def _on_step(self) -> bool:
+        if not self._is_eval_step():
+            return True
+
+        pred = self.model.q_net_target(self.initial_state)
+
+        for action, q_val in enumerate(pred.squeeze()):
+            self.logger.record(f'eval/{self.eval_id}/init_q_val/{action}', float(q_val))
+
+        return True
+
+
+    def _is_eval_step(self) -> bool:
+        if isinstance(self.eval_freq, int):
+            freq = self.eval_freq
+        else:
+            max_step, freq = self.eval_freq[self.cur_eval_freq_ix]
+
+            if max_step == self.num_timesteps and self.cur_eval_freq_ix < len(self.eval_freq) - 1:
+                self.cur_eval_freq_ix += 1
+
+        return freq > 0 and self.num_timesteps % freq == 0
 
 
 

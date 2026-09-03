@@ -7,7 +7,7 @@ from gymnasium.envs.classic_control import CartPoleEnv
 from highway_env.vehicle.uncertainty import prediction
 
 from common import compute_per_env_final_score
-from projection.benchmarks.projected_env_benchmark import ProjectedEnvBenchmark
+from transformation.benchmarks.transformed_env_benchmark import TransformedEnvBenchmark
 from stable_baselines3 import DQN
 
 GAMMA = 0.99
@@ -55,7 +55,7 @@ def load_models(seeds: list[int], env: str) -> dict[int, DQN]:
 
 def main():
     scores, best_seed = load_scores()
-    benchmark = ProjectedEnvBenchmark(
+    benchmark = TransformedEnvBenchmark(
         CartPoleEnv,  # type: ignore
         [1, 2, 3],
         True,

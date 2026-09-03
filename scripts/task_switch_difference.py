@@ -5,7 +5,7 @@ import numpy as np
 import gymnasium as gym
 from tqdm import tqdm
 
-from projection.benchmarks.projected_env_benchmark import ProjectedEnvBenchmark
+from transformation.benchmarks.transformed_env_benchmark import TransformedEnvBenchmark
 
 
 N = 100_000
@@ -64,7 +64,7 @@ def main() -> None:
         observations = collect_samples(N, env_name)
 
         for difficulty in BENCHMARKS:
-            benchmark = ProjectedEnvBenchmark(gym.Env, BENCHMARKS[difficulty], False, size=4)
+            benchmark = TransformedEnvBenchmark(gym.Env, BENCHMARKS[difficulty], False, size=4)
 
             distances = compute_distances(observations, benchmark.matrices)
 
