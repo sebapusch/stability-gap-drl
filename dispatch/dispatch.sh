@@ -11,4 +11,4 @@ module load CUDA/12.6.0
 export MUJOCO_GL="egl"
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 
-python projection/main.py "$@"
+python transformation/main.py "$@"
