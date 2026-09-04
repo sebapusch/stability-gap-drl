@@ -7,8 +7,8 @@
 
 cd /scratch/$USER/stability-gap-drl
 source .venv/bin/activate
-module load CUDA/12.6.0
+module load uv
 export MUJOCO_GL="egl"
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 
-python transformation/main.py "$@"
+uv run transformation/main.py "$@"
