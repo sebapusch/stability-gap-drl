@@ -189,7 +189,7 @@ def _build_sac(
     )
 
     match method:
-        case "joint_incremental":
+        case "fine_tune":
             return SAC_FineTune(**common_kwargs)
         case "joint_incremental":
             return SAC_JointIncremental(
