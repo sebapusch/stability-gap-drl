@@ -1,8 +1,6 @@
-from typing import Any, Callable
+from typing import Any
 
-from gymnasium.wrappers import FlattenObservation
-from highway_env.envs import HighwayEnvFast
-
+from stable_baselines3.ddpg.ddpg_fine_tune import DDPG_FineTune
 from transformation.args import get_args, parse_eval_freq
 from transformation.callbacks import make_callbacks
 from gymnasium.envs.classic_control import CartPoleEnv
@@ -10,43 +8,26 @@ from gymnasium.envs.mujoco.inverted_pendulum_v5 import InvertedPendulumEnv
 from torch.optim import SGD, Adam, AdamW, Optimizer, RMSprop
 
 import wandb
-from transformation.benchmarks.inverted_pendulum_hard import InvertedPendulumHard
-from transformation.benchmarks.transformed_env_benchmark import TransformedEnvBenchmark
+from transformation.benchmarks.transformed_env_benchmark import TransformedEnvBenchmark, EnvFactory
 from transformation.common import make_logger, model_weight_path
 from stable_baselines3.common.type_aliases import GymEnv
 from stable_baselines3.continual import ContinualLearning
-from stable_baselines3.ddpg.ddpg_aegem import DDPG_AEGEM
-from stable_baselines3.ddpg.ddpg_agem import DDPG_AGEM
-from stable_baselines3.ddpg.ddpg_bc import DDPG_BC
 from stable_baselines3.ddpg.ddpg_joint_incremental import DDPG_JointIncremental
-from stable_baselines3.dqn.dqn_a_egem import DQN_AEGEM
-from stable_baselines3.dqn.dqn_bc import DQN_BC
 from stable_baselines3.dqn.dqn_fine_tune import DQN_FineTune
 from stable_baselines3.dqn.dqn_joint_icremental import DQN_JointIncremental
-from stable_baselines3.dqn.dqn_joint_incremental_a_gem import DQN_JointIncremental_AGEM
-from stable_baselines3.dqn.dqn_joint_incremental_pc_grad import (
-    DQN_JointIncremental_PCGrad,
-)
-from stable_baselines3.sac.sac_bc import SAC_BC
 from stable_baselines3.sac.sac_fine_tune import SAC_FineTune
-from stable_baselines3.sac.sac_aegem import SAC_AEGEM
-from stable_baselines3.sac.sac_agem import SAC_AGEM
 from stable_baselines3.sac.sac_joint_incremental import SAC_JointIncremental
-from stable_baselines3.sacd.sacd_aegem import SACD_AEGEM
-from stable_baselines3.sacd.sacd_agem import SACD_AGEM
-from stable_baselines3.sacd.sacd_bc import SACD_BC
 from stable_baselines3.sacd.sacd_fine_tune import SACD_FineTune
 from stable_baselines3.sacd.sacd_joint_incremental import SACD_JointIncremental
 
 
-EnvFactory = Callable[..., GymEnv]
 OptimizerConfig = tuple[type[Optimizer], dict[str, Any]]
 
 
-ENV_REGISTRY: dict[str, tuple[EnvFactory, int]] = {
-    "cartpole": (CartPoleEnv, 500),
-    "inverted_pendulum": (InvertedPendulumEnv, 1000),
-    "inverted_pendulum_hard": (InvertedPendulumHard, 1000),
+# Env Class, State Vector Dimensions, Max Episode
+ENV_REGISTRY: dict[str, tuple[EnvFactory, int, int]] = {
+    "cartpole": (CartPoleEnv, 4, 500),
+    "inverted_pendulum": (InvertedPendulumEnv, 4, 1000),
 }
 
 OPTIMIZERS: dict[str, OptimizerConfig] = {
@@ -60,20 +41,19 @@ OPTIMIZERS: dict[str, OptimizerConfig] = {
 
 def get_benchmark(
     env: str,
-    benchmark: list[str],
     seed: int,
     encode: bool = True,
 ) -> TransformedEnvBenchmark:
-    env_cls, time_limit = ENV_REGISTRY[env]
-    versions = [int(v.strip("V")) for v in benchmark]
+    env_cls, dimension, time_limit = ENV_REGISTRY[env]
 
     return TransformedEnvBenchmark(
-        env_cls,
-        versions,
-        encode,
-        seed,
-        time_limit,
+        env_class=env_cls,
+        dimension=dimension,
+        encode_task=encode,
+        seed=seed,
+        time_limit=time_limit,
     )
+
 
 
 def _build_dqn(
@@ -90,20 +70,14 @@ def _build_dqn(
     epsilon_decay_frac: float,
     seed: int,
     method: str,
-    behavior_cloning_coefficient: float,
-    expert_buffer_size: int,
-    expert_buffer_batch_size: int,
     tau: float,
     network_size: int,
     n_tasks: int,
     balanced_sampling: bool,
     policy_kwargs: dict[str, Any],
-    multihead: bool,
     exploration_strategy: str = "eps-greedy",
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
-    if multihead:
-        policy_kwargs["n_heads"] = n_tasks
 
     common_kwargs = dict(
         policy="MlpPolicy",
@@ -125,40 +99,12 @@ def _build_dqn(
     )
 
     match method:
-        case "behavior_cloning":
-            return DQN_BC(
-                expert_buffer_size=expert_buffer_size,
-                n_tasks=n_tasks,
-                expert_buffer_batch_size=expert_buffer_batch_size,
-                lambda_=behavior_cloning_coefficient,
-                **common_kwargs,
-            )
         case "fine_tune":
             return DQN_FineTune(**common_kwargs)
         case "joint_incremental":
             return DQN_JointIncremental(
                 n_tasks=n_tasks,
                 balanced_sampling=balanced_sampling,
-                **common_kwargs,
-            )
-        case "joint_incremental_pc_grad":
-            return DQN_JointIncremental_PCGrad(
-                n_tasks=n_tasks,
-                balanced_sampling=False,
-                **common_kwargs,
-            )
-        case "joint_incremental_a_gem":
-            return DQN_JointIncremental_AGEM(
-                n_tasks=n_tasks,
-                balanced_sampling=False,
-                **common_kwargs,
-            )
-        case "a_egem":
-            return DQN_AEGEM(
-                n_tasks=n_tasks,
-                lambda_=1,
-                expert_buffer_batch_size=expert_buffer_batch_size,
-                expert_buffer_size=expert_buffer_size,
                 **common_kwargs,
             )
         case _:
@@ -175,15 +121,11 @@ def _build_sacd(
     learning_starts: int,
     seed: int,
     method: str,
-    behavior_cloning_coefficient: float,
-    expert_buffer_size: int,
-    expert_buffer_batch_size: int,
     ent_coef: float | None,
     network_size: int,
     n_tasks: int,
     balanced_sampling: bool,
     policy_kwargs: dict[str, Any],
-    multihead: bool,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -202,33 +144,12 @@ def _build_sacd(
     )
 
     match method:
-        case "behavior_cloning":
-            return SACD_BC(
-                expert_buffer_size=expert_buffer_size,
-                n_tasks=n_tasks,
-                expert_buffer_batch_size=expert_buffer_batch_size,
-                lambda_=behavior_cloning_coefficient,
-                **common_kwargs,
-            )
         case "fine_tune":
             return SACD_FineTune(**common_kwargs)
         case "joint_incremental":
             return SACD_JointIncremental(
                 n_tasks=n_tasks,
                 balanced_sampling=balanced_sampling,
-                **common_kwargs,
-            )
-        case "a_gem":
-            return SACD_AGEM(
-                n_tasks=n_tasks,
-                balanced_sampling=balanced_sampling,
-                **common_kwargs,
-            )
-        case "a_egem":
-            return SACD_AEGEM(
-                expert_buffer_size=expert_buffer_size,
-                n_tasks=n_tasks,
-                expert_buffer_batch_size=expert_buffer_batch_size,
                 **common_kwargs,
             )
         case _:
@@ -245,16 +166,11 @@ def _build_sac(
     learning_starts: int,
     seed: int,
     method: str,
-    behavior_cloning_coefficient: float,
-    expert_buffer_size: int,
-    expert_buffer_batch_size: int,
-    bc_loss_fn: str,
     ent_coef: float | None,
     network_size: int,
     n_tasks: int,
     balanced_sampling: bool,
     policy_kwargs: dict[str, Any],
-    multihead: bool,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -273,43 +189,12 @@ def _build_sac(
     )
 
     match method:
-        case "behavior_cloning":
-            return SAC_BC(
-                expert_buffer_size=expert_buffer_size,
-                n_tasks=n_tasks,
-                expert_buffer_batch_size=expert_buffer_batch_size,
-                lambda_=behavior_cloning_coefficient,
-                loss_fn=bc_loss_fn,
-                **common_kwargs,
-            )
-        case "fine_tune":
+        case "joint_incremental":
             return SAC_FineTune(**common_kwargs)
         case "joint_incremental":
             return SAC_JointIncremental(
                 n_tasks=n_tasks,
                 balanced_sampling=balanced_sampling,
-                **common_kwargs,
-            )
-        case "a_gem":
-            return SAC_AGEM(
-                n_tasks=n_tasks,
-                balanced_sampling=balanced_sampling,
-                **common_kwargs,
-            )
-        case "joint_incremental_a_gem":
-            return SAC_AGEM(
-                expert_buffer_size=expert_buffer_size,
-                n_tasks=n_tasks,
-                expert_buffer_batch_size=expert_buffer_batch_size,
-                balanced_sampling=balanced_sampling,
-                **common_kwargs,
-            )
-        case "a_egem":
-            return SAC_AEGEM(
-                expert_buffer_size=expert_buffer_size,
-                n_tasks=n_tasks,
-                expert_buffer_batch_size=expert_buffer_batch_size,
-                loss_fn=bc_loss_fn,
                 **common_kwargs,
             )
         case _:
@@ -326,14 +211,10 @@ def _build_ddpg(
     learning_starts: int,
     seed: int,
     method: str,
-    behavior_cloning_coefficient: float,
-    expert_buffer_size: int,
-    expert_buffer_batch_size: int,
     network_size: int,
     n_tasks: int,
     balanced_sampling: bool,
     policy_kwargs: dict[str, Any],
-    multihead: bool,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -351,30 +232,11 @@ def _build_ddpg(
     )
 
     match method:
-        case "joint_incremental":
+        case 'fine_tune':
+            return DDPG_FineTune(**common_kwargs)
+        case 'joint_incremental':
             return DDPG_JointIncremental(
                 balanced_sampling=balanced_sampling,
-                n_tasks=n_tasks,
-                **common_kwargs,
-            )
-        case "behavior_cloning":
-            return DDPG_BC(
-                expert_buffer_size=expert_buffer_size,
-                expert_buffer_batch_size=expert_buffer_batch_size,
-                lambda_=behavior_cloning_coefficient,
-                n_tasks=n_tasks,
-                **common_kwargs,
-            )
-        case "a_gem":
-            return DDPG_AGEM(
-                balanced_sampling=balanced_sampling,
-                n_tasks=n_tasks,
-                **common_kwargs,
-            )
-        case "a_egem":
-            return DDPG_AEGEM(
-                expert_buffer_size=expert_buffer_size,
-                expert_buffer_batch_size=expert_buffer_batch_size,
                 n_tasks=n_tasks,
                 **common_kwargs,
             )
@@ -391,7 +253,6 @@ def train_continual(
     name_prefix: str,
     project: str,
     eval_freq: int | list[tuple[int, int]],
-    q_net_track_freq: int | list[tuple[int, int]],
     video_freq: int,
     n_eval_episodes: int,
     config: dict[str, Any],
@@ -399,20 +260,17 @@ def train_continual(
     total_timesteps: int,
     store_weights: bool,
 ) -> None:
+    run = wandb.init(
+        name=f"{name_prefix}",
+        project=project,
+        config=config,
+        tags=tags,
+    )
+
+    loggers = make_logger(project, run.name)
+
     for ix, train_env in enumerate(envs_train):
-        version = f"V{benchmark.benchmark[ix]}"
-        run_tags = tags + [version]
-
-        run = wandb.init(
-            name=f"{name_prefix}-{version}",
-            project=project,
-            config=config,
-            tags=run_tags,
-        )
-
-        assert run.name is not None
-
-        model.on_task_change(ix, train_env, make_logger(project, run.name))
+        model.on_task_change(ix, train_env, loggers)
 
         callbacks = make_callbacks(
             benchmark=benchmark,
@@ -421,19 +279,18 @@ def train_continual(
             video_freq=video_freq,
             n_eval_episodes=n_eval_episodes,
             eval_all=eval_all,
-            q_net_track_freq=q_net_track_freq,
         )
 
         model.learn(
             total_timesteps=total_timesteps,
             callback=callbacks(ix),
-            reset_num_timesteps=True,
+            reset_num_timesteps=False,
         )
 
         if store_weights:
-            model.save(model_weight_path(project, run.name))
+            model.save(model_weight_path(project, run.name, ix))
 
-        run.finish()
+    run.finish()
 
 
 def train_multitask(
@@ -473,7 +330,6 @@ def train_multitask(
         video_freq=video_freq,
         n_eval_episodes=n_eval_episodes,
         eval_all=False,
-        q_net_track_freq=0,
     )
 
     model.learn(
@@ -486,7 +342,6 @@ def train_multitask(
 
 
 def main(
-    benchmark: list[str] | None = None,
     env: str = "cartpole",
     seed: int = 42,
     name_prefix: str = "",
@@ -507,24 +362,18 @@ def main(
     total_timesteps: int = 200_000,
     encode_task: bool = False,
     balanced_sampling: bool = False,
-    behavior_cloning_coefficient: float = 100,
-    expert_buffer_batch_size: int = 128,
-    expert_buffer_size: int = 1000,
     eval_all: bool = True,
     bc_loss_fn: str = "kl",
     algorithm: str = "dqn",
     ent_coef: float | str | None = None,
     dqn_tau: float = 1.0,
     network_size: int | None = None,
-    ewc_lambda: float = 1.0,
     optimizer: str = "adam",
-    multihead: bool = False,
     mode: str = "continual",
     store_weights: bool = False,
     exploration_strategy: str = "eps-greedy",
-    q_net_track_freq: int | list[tuple[int, int]] = 0,
 ) -> None:
-    bench = get_benchmark(env, benchmark or ["V1", "V2", "V3"], seed, encode_task)
+    bench = get_benchmark(env, seed, encode_task)
 
     envs_train, envs_test = bench.make()
 
@@ -536,13 +385,9 @@ def main(
         learning_starts=learning_starts,
         seed=seed,
         method=method,
-        behavior_cloning_coefficient=behavior_cloning_coefficient,
-        expert_buffer_size=expert_buffer_size,
-        expert_buffer_batch_size=expert_buffer_batch_size,
         network_size=network_size,
         n_tasks=len(bench),
         balanced_sampling=balanced_sampling,
-        multihead=multihead,
         policy_kwargs=dict(
             optimizer_class=OPTIMIZERS[optimizer][0],
             optimizer_kwargs=OPTIMIZERS[optimizer][1],
@@ -608,7 +453,6 @@ def main(
                 eval_all=eval_all,
                 total_timesteps=total_timesteps,
                 store_weights=store_weights,
-                q_net_track_freq=q_net_track_freq,
             )
         case "multitask":
             train_multitask(
@@ -632,9 +476,6 @@ def main(
 if __name__ == "__main__":
     args = vars(get_args())
     args["eval_freq"] = parse_eval_freq(args["eval_freq"], args["total_timesteps"])
-    args["q_net_track_freq"] = parse_eval_freq(
-        args["q_net_track_freq"], args["total_timesteps"]
-    )
     if type(args["ent_coef"]) == str:
         if args["ent_coef"] == "auto":
             args["ent_coef"] = None

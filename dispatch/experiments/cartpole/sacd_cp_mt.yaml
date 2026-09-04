@@ -1,10 +1,8 @@
-name_prefix: "sacd_cp_bc_ent"
-project: "sacd_cp_bc_ent"
+name_prefix: "sacd_cp_ji_mt"
+project: "sacd_cp_ji_mt"
 algorithm: "sacd"
 env: "cartpole"
-method: "behavior_cloning"
-benchmark: ["V1", "V2", "V3"]
-behavior_cloning_coefficient: 0.4
+method: "joint_incremental"
 batch_size: 128
 encode_task: true
 eval_all: true
@@ -17,10 +15,10 @@ buffer_size: 500_000
 target_update: 1000
 learning_starts: 1000
 total_timesteps: 100_000
-expert_buffer_size: 2500
 network_size: 256
-
 time: "04:00:00"
+
 ablations:
-  ent_coef: [0.0, 0.01, 0.1, 0.5, 1.0]
+  ent_coef: ["auto", "0.0", "0.01", "0.1", "0.5", "1.0"]
   seed: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  encode_task: [true, false]

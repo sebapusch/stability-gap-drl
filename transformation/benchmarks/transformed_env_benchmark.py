@@ -1,3 +1,5 @@
+from typing import Callable
+
 import numpy as np
 from gymnasium import Env
 from gymnasium.wrappers import TimeLimit
@@ -7,7 +9,14 @@ from transformation.benchmarks.wrappers import (
     ObsSpaceInf,
     OneHotWrapper,
 )
+from stable_baselines3.common.type_aliases import GymEnv
 from stable_baselines3.common.vec_env import VecEnv, SubprocVecEnv, DummyVecEnv
+
+
+EnvFactory = Callable[..., Env]
+
+
+NUM_TASKS = 3
 
 
 def random_orthogonal(seed: int, size: int) -> np.ndarray:
@@ -35,10 +44,10 @@ def _make_transformation_matrices(seed: int, dimension: int, num_tasks: int) -> 
 class TransformedEnvBenchmark:
     def __init__(
         self,
-        env_class: type[Env],
+        env_class: EnvFactory,
         dimension: int,
         seed: int = 42,
-        num_tasks: int = 3,
+        num_tasks: int = NUM_TASKS,
         encode_task: bool = True,
         time_limit: int | None = None,
     ) -> None:

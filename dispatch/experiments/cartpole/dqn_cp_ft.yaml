@@ -3,14 +3,11 @@ project: "dqn_cp_ft"
 algorithm: "dqn"
 env: "cartpole"
 method: "fine_tune"
-benchmark: ["V1", "V2", "V3"]
 batch_size: 128
-encode_task: true
 eval_all: true
 eval_freq: [5000 10 500]
 video_freq: 0
 n_eval_episodes: 15
-lr: 0.00025
 gamma: 0.99
 buffer_size: 500_000
 target_update: 1000
@@ -21,7 +18,9 @@ epsilon_start: 1.0
 epsilon_end: 0.05
 epsilon_decay_frac: 0.1
 dqn_tau: 1.0
-
 time: "04:00:00"
+
 ablations:
   seed: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  lr: [0.0001, 0.00025, 0.0005, 0.00075, 0.001]
+  encode_task: [true, false]

@@ -5,7 +5,6 @@ from typing import Any, Callable
 import numpy as np
 import torch
 import wandb
-from highway_env.vehicle.uncertainty import prediction
 from wandb.integration.sb3 import WandbCallback
 
 from transformation.benchmarks.transformed_env_benchmark import TransformedEnvBenchmark
@@ -25,7 +24,6 @@ def make_callbacks(
         n_eval_episodes: int,
         video_freq: int,
         eval_all: bool,
-        q_net_track_freq: int | list[tuple[int, int]],
 ) -> Callable[[int], CallbackList]:
     wandb_callback = WandbCallback(gradient_save_freq=1000, verbose=2)
 
@@ -38,31 +36,19 @@ def make_callbacks(
         callbacks: list[BaseCallback] = [wandb_callback]
 
         if video_freq > 0:
-            video_env = benchmark.make_single(benchmark.benchmark[env_ix], test=True, render_mode='rgb_array')
+            video_env = benchmark.make_single(env_ix, test=True, render_mode='rgb_array')
             callbacks.append(
                 RegisterVideoCallback(video_freq, video_env),
             )
 
-        track_q_net = isinstance(q_net_track_freq, list) or q_net_track_freq > 0
-
-        rng = range(len(benchmark) if eval_all else env_ix + 1)
-        for i in rng:
-            callbacks.append(
-                EnvEvalCallback(
-                    eval_id=f'V{benchmark.benchmark[i]}',
-                    eval_env=envs_test[i],
-                    eval_freq=eval_freq,
-                    n_eval_episodes=n_eval_episodes,
-                )
+        n_eval_envs = len(benchmark) if eval_all else env_ix + 1
+        callbacks.append(
+            EnvEvalCallback(
+                eval_envs=envs_test[:n_eval_envs],
+                eval_freq=eval_freq,
+                n_eval_episodes=n_eval_episodes,
             )
-            if not track_q_net: continue
-            callbacks.append(
-                TrackQNet(
-                    f'V{benchmark.benchmark[i]}',
-                    envs_test[i],
-                    q_net_track_freq,
-                )
-            )
+        )
 
         return CallbackList(callbacks)
 
@@ -72,8 +58,7 @@ def make_callbacks(
 class EnvEvalCallback(EventCallback):
     def __init__(
             self,
-            eval_id: str,
-            eval_env: GymEnv,
+            eval_envs: list[GymEnv],
             callback_on_new_best: BaseCallback | None = None,
             n_eval_episodes: int = 5,
             eval_freq: int | list[tuple[int, int]] = 10000,
@@ -82,15 +67,17 @@ class EnvEvalCallback(EventCallback):
     ):
         super().__init__()
 
-        self.eval_id = eval_id
-        self.eval_env = eval_env
+        if not eval_envs:
+            raise ValueError("EnvEvalCallback requires at least one evaluation environment")
+
+        self.eval_envs = eval_envs
         self.callback_on_new_best = callback_on_new_best
         self.eval_freq = eval_freq
         self.n_eval_episodes = n_eval_episodes
         self.deterministic = deterministic
         self._is_success_buffer: list[bool] = []
         self.evaluations_successes: list[list[bool]] = []
-        self.best_mean_reward = 0.0
+        self.best_mean_rewards = [0.0] * len(eval_envs)
         self.verbose = verbose
         self.cur_eval_freq_ix = 0
 
@@ -119,57 +106,54 @@ class EnvEvalCallback(EventCallback):
         if not self._is_eval_step():
             return continue_training
 
-        if self.model.get_vec_normalize_env() is not None:
-            try:
-                sync_envs_normalization(self.training_env, self.eval_env)
-            except AttributeError as e:
-                raise AssertionError(
-                    "Training and eval env are not wrapped the same way, "
-                    "see https://stable-baselines3.readthedocs.io/en/master/guide/callbacks.html#evalcallback "
-                    "and warning above."
-                ) from e
+        for eval_ix, eval_env in enumerate(self.eval_envs):
+            if self.model.get_vec_normalize_env() is not None:
+                try:
+                    sync_envs_normalization(self.training_env, eval_env)
+                except AttributeError as e:
+                    raise AssertionError(
+                        "Training and eval env are not wrapped the same way, "
+                        "see https://stable-baselines3.readthedocs.io/en/master/guide/callbacks.html#evalcallback "
+                        "and warning above."
+                    ) from e
 
-        # reset buffer
-        self._is_success_buffer = []
+            self._is_success_buffer = []
 
-        episode_rewards, episode_lengths = evaluate_policy(
-            self.model,
-            self.eval_env,
-            n_eval_episodes=self.n_eval_episodes,
-            render=False,
-            deterministic=self.deterministic,
-            return_episode_rewards=True,
-            warn=False,
-            callback=self._log_success_callback,
-        )
+            episode_rewards, episode_lengths = evaluate_policy(
+                self.model,
+                eval_env,
+                n_eval_episodes=self.n_eval_episodes,
+                render=False,
+                deterministic=self.deterministic,
+                return_episode_rewards=True,
+                warn=False,
+                callback=self._log_success_callback,
+            )
 
-        mean_reward, std_reward = np.mean(episode_rewards), np.std(episode_rewards)
-        mean_ep_length, std_ep_length = np.mean(episode_lengths), np.std(episode_lengths)
-        self.last_mean_reward = float(mean_reward)
+            mean_reward = float(np.mean(episode_rewards))
+            mean_ep_length = float(np.mean(episode_lengths))
+            self.last_mean_reward = mean_reward
 
-        self.logger.record(f'eval/{self.eval_id}/mean_reward', float(mean_reward))
-        self.logger.record(f'eval/{self.eval_id}/mean_ep_length', mean_ep_length)
+            self.logger.record(f'eval/{eval_ix}/mean_reward', mean_reward)
+            self.logger.record(f'eval/{eval_ix}/mean_ep_length', mean_ep_length)
+            self.logger.record(
+                f"time/{eval_ix}/total_timesteps",
+                self.num_timesteps,
+                exclude="tensorboard",
+            )
 
-        # if len(self._is_success_buffer) == 0:
-        #     print('WARNING: Success buffer is empty, unable to compute success rate')
-        # else:
-        #     success_rate = np.mean(self._is_success_buffer)
-        #     self.logger.record(f'eval/{self.eval_id}/success_rate', success_rate)
+            if mean_reward > self.best_mean_rewards[eval_ix]:
+                self.best_mean_rewards[eval_ix] = mean_reward
+                if self.verbose >= 1:
+                    print(f"New best mean reward for evaluation environment {eval_ix}!")
 
-        # Dump log so the evaluation results are printed with the correct timestep
-        self.logger.record(f"time/{self.eval_id}/total_timesteps", self.num_timesteps, exclude="tensorboard")
+                if self.callback_on_new_best is not None:
+                    continue_training = (
+                        self.callback_on_new_best.on_step() and continue_training
+                    )
+
+        # Commit all evaluation metrics in one W&B history row.
         self.logger.dump(self.num_timesteps)
-
-        if mean_reward > self.best_mean_reward:
-            self.best_mean_reward = float(mean_reward)
-            if self.verbose >= 1:
-                print("New best mean reward!")
-            # if self.best_model_save_path is not None:
-            #    self.model.save(os.path.join(self.best_model_save_path, "best_model"))
-
-            # Trigger callback on new best model, if needed
-            if self.callback_on_new_best is not None:
-                continue_training = self.callback_on_new_best.on_step()
 
         # Trigger callback after every evaluation, if needed
         if self.callback is not None:

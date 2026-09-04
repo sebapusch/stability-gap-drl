@@ -34,3 +34,9 @@ class ContinualLearning(Protocol):
         reset_num_timesteps: bool = True,
         progress_bar: bool = False,
     ) -> None: ...
+
+
+    def save(
+        self,
+        path: str,
+    ) -> None: ...

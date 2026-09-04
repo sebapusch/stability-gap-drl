@@ -31,10 +31,10 @@ def make_logger(project: str, run_name: str | None) -> Logger:
     )
 
 
-def model_weight_path(project: str, run_name: str) -> str:
+def model_weight_path(project: str, run_name: str, env_ix: int) -> str:
     dir_path = path.abspath(
         path.join(MODEL_PATH, project)
     )
     makedirs(dir_path, exist_ok=True)
 
-    return path.abspath(path.join(dir_path, f"{run_name}.zip"))
+    return path.abspath(path.join(dir_path, f"{run_name}-{env_ix}.zip"))
