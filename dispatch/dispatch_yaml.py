@@ -67,7 +67,6 @@ def process_yaml(yaml_path, dry):
 
         sbatch_time = curr_config.pop("time", "03:00:00")
         sbatch_memo = curr_config.pop("mem", None)
-        setting = curr_config.pop("setting", "transformation")
 
         final_args = {}
         for k, v in curr_config.items():
@@ -80,7 +79,7 @@ def process_yaml(yaml_path, dry):
         cmd_lines = [f"sbatch --time={sbatch_time}"]
         if sbatch_memo is not None:
             cmd_lines.append(f"--mem={sbatch_memo}")
-        cmd_lines.append(f"dispatch/dispatch_{setting}.sh")
+        cmd_lines.append(f"dispatch/dispatch.sh")
 
         # Format arguments
         for k, v in final_args.items():
