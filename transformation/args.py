@@ -25,7 +25,6 @@ def get_args() -> Namespace:
 
     parser.add_argument("--encode_task", action="store_true", help="Append a one-hot encoding of the current task index to the observation")
     parser.add_argument("--balanced_sampling", action="store_true", default=False, help='Whether to maintain original batch size per task on when mode is "continual"')
-    parser.add_argument("--eval_all", action="store_false", default=True, help="Whether to only evaluate all environments in the benchmark on every evaluation step")
 
     # ── Training hyperparameters ────────────────────────────────────
     parser.add_argument("--eval_freq", default=[500], type=int, nargs="+", help="Evaluation frequency schedule. Accepts one or more integers:\n  1 value:  --eval_freq <freq>\n      Evaluate every <freq> steps (constant frequency).\n  ≥3 values (even): --eval_freq <max_step_1> <freq_1> <max_step_2> <freq_2> ...\n      Use <freq_i> until step <max_step_i>, then switch to the next pair.\n  ≥3 values (odd):  --eval_freq <max_step_1> <freq_1> ... <final_freq>\n      Same as even, but the trailing <final_freq> applies from the\n      last max_step up to total_timesteps.\n  2 values: INVALID (ambiguous; use 1 or ≥3).\n")
