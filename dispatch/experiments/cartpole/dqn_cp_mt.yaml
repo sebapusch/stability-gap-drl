@@ -3,6 +3,7 @@ project: "dqn_cp_ji_mt"
 algorithm: "dqn"
 env: "cartpole"
 method: "joint_incremental"
+mode: "multitask"
 batch_size: 128
 eval_freq: [5000 100 500]
 video_freq: 0

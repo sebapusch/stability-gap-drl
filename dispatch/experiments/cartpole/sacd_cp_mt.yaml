@@ -3,6 +3,7 @@ project: "sacd_cp_ji_mt"
 algorithm: "sacd"
 env: "cartpole"
 method: "joint_incremental"
+mode: "multitask"
 batch_size: 128
 encode_task: true
 eval_freq: [5000, 100, 500]
