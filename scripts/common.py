@@ -23,7 +23,14 @@ def parse_config(config_path: str) -> dict:
         cfg = yaml.safe_load(f)
 
     ablations = cfg.get("ablations", {})
-    benchmark = cfg.get("benchmark", [])
+    num_tasks = cfg.get("num_tasks", 3)
+    benchmark = cfg.get("benchmark")
+    if benchmark is None:
+        # The current benchmark implementation names evaluation streams by
+        # their zero-based task index (eval/0, eval/1, ...).
+        benchmark = [str(i) for i in range(num_tasks)]
+    else:
+        benchmark = [str(task) for task in benchmark]
     name_prefix = cfg.get("name_prefix", "experiment")
 
     all_ablation_keys = list(ablations.keys())
@@ -118,9 +125,11 @@ def load_csv_columns(filepath: Path, target_cols: list[str]) -> pd.DataFrame:
 
 def load_all_csvs(data_dir: Path, name_prefix: str, benchmark: list[str], hp_combo: dict, seeds: list[int], all_ablation_keys: list[str], project: str = None) -> dict:
     """
-    Load CSV files for all seeds and train_envs under a given hp combination.
-    Each file is loaded exactly once.
-    Returns: {seed: {train_env: df}}
+    Load the single continual-learning CSV for each seed in an HP combination.
+
+    Since the trainer keeps one logger alive for the entire task loop, the
+    filename no longer has a trailing training-task name and its timesteps are
+    already cumulative. Returns ``{seed: dataframe}``.
     """
     data = {}
     target_cols = []
@@ -130,15 +139,12 @@ def load_all_csvs(data_dir: Path, name_prefix: str, benchmark: list[str], hp_com
     dir_name = project if project is not None else name_prefix
     for seed in seeds:
         suffix = build_suffix(hp_combo, seed, all_ablation_keys)
-        seed_data = {}
-        for train_env in benchmark:
-            filename = f"{name_prefix}-{suffix}-{train_env}.csv"
-            filepath = data_dir / dir_name / filename
-            df = load_csv_columns(filepath, target_cols)
-            if not df.empty:
-                seed_data[train_env] = df
-        if seed_data:
-            data[seed] = seed_data
+        run_name = name_prefix + (f"-{suffix}" if suffix else "")
+        filename = f"{run_name}.csv"
+        filepath = data_dir / dir_name / filename
+        df = load_csv_columns(filepath, target_cols)
+        if not df.empty:
+            data[seed] = df
     return data
 
 
@@ -167,10 +173,10 @@ def compute_per_env_final_score(
         all_ablation_keys: list[str],
         project: str = None,
 ) -> float | None:
-    """Extract raw (unnormalized) final smoothed reward for a single seed/eval_env."""
-    last_train_env = benchmark[-1]
+    """Extract a final reward from the single CSV for a seed's full run."""
     suffix = build_suffix(hp_combo, seed, all_ablation_keys)
-    filename = f"{name_prefix}-{suffix}-{last_train_env}.csv"
+    run_name = name_prefix + (f"-{suffix}" if suffix else "")
+    filename = f"{run_name}.csv"
     dir_name = project if project is not None else name_prefix
     filepath = data_dir / dir_name / filename
     return load_final_reward(filepath, eval_env, n_smooth)
@@ -307,9 +313,9 @@ def smooth_peak_aware(arr: np.ndarray, window: int | None) -> np.ndarray:
 
 def get_aligned_curves(
     combo_data: dict,
-    train_envs: list[str],
     eval_env: str,
-    timesteps_per_env: int,
+    timestep_start: int | None = None,
+    timestep_end: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, list[int]]:
     """
     Align eval data for a given eval_env across all seeds in combo_data,
@@ -323,25 +329,21 @@ def get_aligned_curves(
     reward_col = f"eval/{eval_env}/mean_reward"
     timestep_col = f"time/{eval_env}/total_timesteps"
 
-    for seed, seed_data in combo_data.items():
-        all_timesteps = []
-        for env_idx, train_env in enumerate(train_envs):
-            if train_env not in seed_data:
-                continue
-            df = seed_data[train_env]
-            if reward_col not in df.columns or timestep_col not in df.columns:
-                continue
-            mask = df[reward_col].notna() & df[timestep_col].notna()
-            subset = df.loc[mask, [timestep_col, reward_col]].copy()
-            subset.columns = ["timestep", "reward"]
-            subset["timestep"] = subset["timestep"] + env_idx * timesteps_per_env
-            all_timesteps.append(subset)
-
-        if all_timesteps:
-            combined = pd.concat(all_timesteps, ignore_index=True)
-            combined = combined.groupby("timestep", as_index=False).first()
-            combined["seed"] = seed
-            seed_frames.append(combined)
+    for seed, df in combo_data.items():
+        if reward_col not in df.columns or timestep_col not in df.columns:
+            continue
+        mask = df[reward_col].notna() & df[timestep_col].notna()
+        if timestep_start is not None:
+            mask &= df[timestep_col] >= timestep_start
+        if timestep_end is not None:
+            mask &= df[timestep_col] <= timestep_end
+        subset = df.loc[mask, [timestep_col, reward_col]].copy()
+        if subset.empty:
+            continue
+        subset.columns = ["timestep", "reward"]
+        subset = subset.groupby("timestep", as_index=False).first()
+        subset["seed"] = seed
+        seed_frames.append(subset)
 
     if not seed_frames:
         return np.array([]), np.array([]), []
@@ -411,9 +413,7 @@ def compute_final_performance_from_data(
     common_seeds = None
 
     for eval_env in benchmark:
-        ts, curves, seeds = get_aligned_curves(
-            combo_data, benchmark, eval_env, timesteps_per_env
-        )
+        ts, curves, seeds = get_aligned_curves(combo_data, eval_env)
         if len(seeds) == 0:
             continue
         aligned_curves[eval_env] = (ts, curves, seeds)
@@ -518,9 +518,11 @@ def compute_min_acc_from_data(
 
     for i in range(k_idx):
         eval_env = benchmark[i]
-        train_envs_for_task = benchmark[i : k_idx + 1]
         ts, curves, seeds = get_aligned_curves(
-            combo_data, train_envs_for_task, eval_env, timesteps_per_env
+            combo_data,
+            eval_env,
+            timestep_start=i * timesteps_per_env,
+            timestep_end=(k_idx + 1) * timesteps_per_env,
         )
         if len(seeds) == 0:
             continue
@@ -567,7 +569,7 @@ def compute_min_acc_from_data(
 
             max_score = np.nanmax(agg_curve)
 
-            stability_mask = ts >= timesteps_per_env
+            stability_mask = ts >= (i + 1) * timesteps_per_env
             valid_stability = agg_curve[stability_mask]
             valid_stability = valid_stability[~np.isnan(valid_stability)]
             if len(valid_stability) == 0:
@@ -626,32 +628,23 @@ def load_eval_data(
     data_dir: Path,
 ) -> pd.DataFrame:
     """
-    Load and concatenate eval data for a given method, seed, and test env
-    across all training environments.
+    Load eval data from the single CSV spanning the complete task sequence.
     """
-    all_timesteps = []
     reward_col = f"eval/{test_env}/mean_reward"
     timestep_col = f"time/{test_env}/total_timesteps"
     target_cols = [reward_col, timestep_col]
 
-    for env_idx, train_env in enumerate(train_envs):
-        filename = f"{method}-{train_env}.csv".replace('<s>', str(seed))
-        filepath = data_dir / filename
-        df = load_csv_columns(filepath, target_cols)
-        if df.empty or reward_col not in df.columns or timestep_col not in df.columns:
-            continue
-
-        # Extract only rows with eval data for this test env
-        mask = df[reward_col].notna() & df[timestep_col].notna()
-        subset = df.loc[mask, [timestep_col, reward_col]].copy()
-        subset.columns = ["timestep", "reward"]
-        subset["timestep"] = subset["timestep"] + env_idx * timesteps_per_env
-        all_timesteps.append(subset)
-
-    if not all_timesteps:
+    filename = f"{method}.csv".replace('<s>', str(seed))
+    filepath = data_dir / filename
+    df = load_csv_columns(filepath, target_cols)
+    if df.empty or reward_col not in df.columns or timestep_col not in df.columns:
         return pd.DataFrame(columns=["timestep", "reward"])
 
-    result = pd.concat(all_timesteps, ignore_index=True)
+    mask = df[reward_col].notna() & df[timestep_col].notna()
+    result = df.loc[mask, [timestep_col, reward_col]].copy()
+    result.columns = ["timestep", "reward"]
+    # A shared logger can contain duplicate dumps at a task boundary.
+    result = result.groupby("timestep", as_index=False).first()
     result = result.sort_values("timestep").reset_index(drop=True)
     return result
 
@@ -720,4 +713,3 @@ def compute_iqm_curve(
         ci_highs[row_indices] = ch
 
     return valid_ts, iqm_values, ci_lows, ci_highs
-

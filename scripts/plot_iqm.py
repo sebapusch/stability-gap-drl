@@ -31,18 +31,19 @@ try:
 except ImportError:
     yaml = None
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "output" / "output"
+DATA_DIR = Path(__file__).resolve().parent.parent / "output"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output" / "plots"
 CACHE_DIR = Path(__file__).resolve().parent.parent / "output" / "cache"
 
 DEFAULT_METHODS = ["continual", "sequential", "fine_tune"]
 SEEDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-TRAIN_ENVS = ["V1", "V2", "V3"]
-TEST_ENVS = ["V1", "V2", "V3"]
+TRAIN_ENVS = ["0", "1", "2"]
+TEST_ENVS = ["0", "1", "2"]
 TIMESTEPS_PER_ENV = 40_000
 FS = 1.2
 X_LABEL = "Cumulative training timesteps"
 Y_LABEL = "IQM episodic return (95% CI)"
+CACHE_SCHEMA_VERSION = "single-run-v1"
 
 # Known labels
 METHOD_LABELS = {
@@ -78,7 +79,7 @@ def get_color(method: str, index: int) -> str:
 
 def make_cache_key(methods: list[str], prefix: str) -> str:
     """Generate a short hash from the sorted methods + prefix combination."""
-    canonical = "|".join(sorted(methods)) + "||" + prefix
+    canonical = CACHE_SCHEMA_VERSION + "||" + "|".join(sorted(methods)) + "||" + prefix
     return hashlib.sha256(canonical.encode()).hexdigest()[:12]
 
 
@@ -139,6 +140,12 @@ def load_config(path: str) -> dict:
                 raise ValueError(
                     f"Line {j} in plot {i} must specify 'envs' as a list of strings."
                 )
+            if "num_tasks" in line and (
+                not isinstance(line["num_tasks"], int)
+                or isinstance(line["num_tasks"], bool)
+                or line["num_tasks"] <= 0
+            ):
+                raise ValueError(f"Line {j} in plot {i} key 'num_tasks' must be a positive integer.")
             if "linewidth" in line and not isinstance(line["linewidth"], (int, float)):
                 raise ValueError(f"Line {j} in plot {i} key 'linewidth' must be a number.")
         zooms = plot.get("zooms")
@@ -162,6 +169,15 @@ def load_config(path: str) -> dict:
         if "linewidth" in cfg["defaults"] and not isinstance(cfg["defaults"]["linewidth"], (int, float)):
             raise ValueError("YAML config 'defaults' key 'linewidth' must be a number.")
     return cfg
+
+
+def _line_envs(line_cfg: dict, fallback: list[str]) -> list[str]:
+    """Resolve task IDs used for plot boundaries and cache identity."""
+    if "envs" in line_cfg:
+        return [str(env) for env in line_cfg["envs"]]
+    if "num_tasks" in line_cfg:
+        return [str(i) for i in range(line_cfg["num_tasks"])]
+    return [str(env) for env in fallback]
 
 
 def _nice_floor(value: float) -> float:
@@ -306,7 +322,7 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
     plot_timesteps = plot_cfg.get("timesteps", timesteps)
     plot_envs = plot_cfg.get("envs", envs)
     if "envs" not in plot_cfg and plot_cfg.get("lines"):
-        plot_envs = plot_cfg["lines"][0].get("envs", envs)
+        plot_envs = _line_envs(plot_cfg["lines"][0], envs)
 
     test_env = plot_cfg.get("test_env")
     title = plot_cfg.get("title", None)
@@ -322,7 +338,7 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
         label = line_cfg.get("label", get_label(method))
         color = line_cfg.get("color", get_color(method, line_idx))
         line_test_env = line_cfg.get("test_env", test_env)
-        line_envs = line_cfg.get("envs", plot_envs)
+        line_envs = _line_envs(line_cfg, plot_envs)
         line_timesteps = line_cfg.get("timesteps", plot_timesteps)
 
         cached = None
@@ -466,7 +482,7 @@ def plot_grid(config: dict, use_cache: bool):
     for p in plots:
         p_timesteps = p.get("timesteps", timesteps)
         for line in p["lines"]:
-            l_envs = line.get("envs", p.get("envs", envs))
+            l_envs = _line_envs(line, p.get("envs", envs))
             l_timesteps = line.get("timesteps", p_timesteps)
             all_methods.append(f"{line['method']}_{'-'.join(l_envs)}_{l_timesteps}")
     cache_key = make_cache_key(all_methods, output_file)
@@ -514,7 +530,7 @@ def plot_grid(config: dict, use_cache: bool):
         plot_timesteps = plot_cfg.get("timesteps", timesteps)
         plot_envs = plot_cfg.get("envs", envs)
         if "envs" not in plot_cfg and plot_cfg.get("lines"):
-            plot_envs = plot_cfg["lines"][0].get("envs", envs)
+            plot_envs = _line_envs(plot_cfg["lines"][0], envs)
 
         test_env = plot_cfg.get("test_env")
         title = plot_cfg.get("title", None)
@@ -530,7 +546,7 @@ def plot_grid(config: dict, use_cache: bool):
             label = line_cfg.get("label", get_label(method))
             color = line_cfg.get("color", get_color(method, line_idx))
             line_test_env = line_cfg.get("test_env", test_env)
-            line_envs = line_cfg.get("envs", plot_envs)
+            line_envs = _line_envs(line_cfg, plot_envs)
             line_timesteps = line_cfg.get("timesteps", plot_timesteps)
 
             cached = None

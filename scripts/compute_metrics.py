@@ -14,7 +14,7 @@ from common import (
     compute_min_acc_from_data,
 )
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "output" / "output"
+DATA_DIR = Path(__file__).resolve().parent.parent / "output"
 DEFAULT_SMOOTH = 5
 N_BOOTSTRAP = 10_000
 CONFIDENCE = 0.95
