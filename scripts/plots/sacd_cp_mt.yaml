@@ -1,0 +1,56 @@
+defaults:
+  env_name: CartPole
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  timesteps: 100_000
+  output_dir: sacd_cp_mt
+  output_file: sacd_cp_mt
+  dpi: 500 # optional: default is 300
+  show_timesteps: true
+  show_x_label: true
+  show_y_label: true
+  format: svg
+
+plots:
+  - title: 'SACD Multi Task (No Task ID, Adaptive entropy)'
+    smooth: 15
+    linewidth: 1.6
+    lines:
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_auto-s_<s>-e_False'
+        num_tasks: 1
+        test_env: 0
+        label: 'P(1)'
+        color: "#3A9AB2"
+
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_auto-s_<s>-e_False'
+        num_tasks: 1
+        test_env: 1
+        label: 'P(2)'
+        color: "#EBCC2A"
+
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_auto-s_<s>-e_False'
+        num_tasks: 1
+        test_env: 2
+        label: 'P(3)'
+        color: "#F21A00"
+
+  - title: 'SACD Multi Task (Task ID, Adaptive Entropy)'
+    smooth: 15
+    linewidth: 1.6
+    lines:
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_auto-s_<s>-e_True'
+        num_tasks: 1
+        test_env: 0
+        label: 'P(1)'
+        color: "#3A9AB2"
+
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_auto-s_<s>-e_True'
+        num_tasks: 1
+        test_env: 1
+        label: 'P(2)'
+        color: "#EBCC2A"
+
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_auto-s_<s>-e_True'
+        num_tasks: 1
+        test_env: 2
+        label: 'P(3)'
+        color: "#F21A00"
