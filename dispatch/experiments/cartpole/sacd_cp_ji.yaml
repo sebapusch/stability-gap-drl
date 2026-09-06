@@ -1,5 +1,5 @@
-name_prefix: "sacd_cp_ft"
-project: "sacd_cp_ft"
+name_prefix: "sacd_cp_ji"
+project: "sacd_cp_ji"
 algorithm: "sacd"
 env: "cartpole"
 method: "joint_incremental"

@@ -1,5 +1,5 @@
-name_prefix: "dqn_cp_ft"
-project: "dqn_cp_ft"
+name_prefix: "dqn_cp_ji"
+project: "dqn_cp_ji"
 algorithm: "dqn"
 env: "cartpole"
 method: "joint_incremental"
