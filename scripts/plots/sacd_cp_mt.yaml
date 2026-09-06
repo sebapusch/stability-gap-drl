@@ -54,3 +54,47 @@ plots:
         test_env: 2
         label: 'P(3)'
         color: "#F21A00"
+
+  - title: 'SACD Multi Task (No Task ID, Max entropy)'
+    smooth: 15
+    linewidth: 1.6
+    lines:
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_1-s_<s>-e_False'
+        num_tasks: 1
+        test_env: 0
+        label: 'P(1)'
+        color: "#3A9AB2"
+
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_1-s_<s>-e_False'
+        num_tasks: 1
+        test_env: 1
+        label: 'P(2)'
+        color: "#EBCC2A"
+
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_1-s_<s>-e_False'
+        num_tasks: 1
+        test_env: 2
+        label: 'P(3)'
+        color: "#F21A00"
+
+  - title: 'SACD Multi Task (Task ID, Max Entropy)'
+    smooth: 15
+    linewidth: 1.6
+    lines:
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_1-s_<s>-e_True'
+        num_tasks: 1
+        test_env: 0
+        label: 'P(1)'
+        color: "#3A9AB2"
+
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_1-s_<s>-e_True'
+        num_tasks: 1
+        test_env: 1
+        label: 'P(2)'
+        color: "#EBCC2A"
+
+      - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_1-s_<s>-e_True'
+        num_tasks: 1
+        test_env: 2
+        label: 'P(3)'
+        color: "#F21A00"

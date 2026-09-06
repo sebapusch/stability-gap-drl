@@ -9,7 +9,6 @@ from transformation.benchmarks.wrappers import (
     ObsSpaceInf,
     OneHotWrapper,
 )
-from stable_baselines3.common.type_aliases import GymEnv
 from stable_baselines3.common.vec_env import VecEnv, SubprocVecEnv, DummyVecEnv
 
 
