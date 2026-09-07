@@ -79,10 +79,18 @@ class EnvEvalCallback(EventCallback):
         self.evaluations_successes: list[list[bool]] = []
         self.best_mean_rewards = [0.0] * len(eval_envs)
         self.verbose = verbose
-        self.cur_eval_freq_ix = 0
+        self.task_start_timestep = 0
+        self.last_eval_timestep: int | None = None
 
         if isinstance(self.eval_freq, list):
             assert len(self.eval_freq) > 0
+
+    def _on_training_start(self) -> None:
+        """Use a fresh, task-local evaluation schedule for every learn call."""
+        self.task_start_timestep = self.num_timesteps
+        self.last_eval_timestep = None
+
+        super()._on_training_start()
 
     def _log_success_callback(self, locals_: dict[str, Any], _: dict[str, Any]) -> None:
         """
@@ -162,16 +170,33 @@ class EnvEvalCallback(EventCallback):
         return continue_training
 
     def _is_eval_step(self) -> bool:
+        # Joint-incremental training invokes callbacks once for every replay
+        # environment while temporarily restoring the same model timestep.
+        # Only one of those invocations should perform evaluation and logging.
+        if self.num_timesteps == self.last_eval_timestep:
+            return False
+
+        task_timestep = self.num_timesteps - self.task_start_timestep
+        if task_timestep <= 0:
+            return False
+
         if isinstance(self.eval_freq, int):
             freq = self.eval_freq
         else:
-            max_step, freq = self.eval_freq[self.cur_eval_freq_ix]
+            # A schedule entry applies through its max step (inclusive).  Use
+            # task-local progress so a newly-created callback starts the same
+            # schedule for every task, even though model.num_timesteps is global.
+            freq = self.eval_freq[-1][1]
+            for max_step, candidate_freq in self.eval_freq:
+                if task_timestep <= max_step:
+                    freq = candidate_freq
+                    break
 
-            if max_step == self.num_timesteps and self.cur_eval_freq_ix < len(self.eval_freq) - 1:
-                self.cur_eval_freq_ix += 1
+        should_evaluate = freq > 0 and task_timestep % freq == 0
+        if should_evaluate:
+            self.last_eval_timestep = self.num_timesteps
 
-
-        return freq > 0 and self.num_timesteps % freq == 0
+        return should_evaluate
 
 
 class TrackQNet(EventCallback):

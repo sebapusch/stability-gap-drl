@@ -30,6 +30,7 @@ def get_args() -> Namespace:
     parser.add_argument("--eval_freq", default=[500], type=int, nargs="+", help="Evaluation frequency schedule. Accepts one or more integers:\n  1 value:  --eval_freq <freq>\n      Evaluate every <freq> steps (constant frequency).\n  ≥3 values (even): --eval_freq <max_step_1> <freq_1> <max_step_2> <freq_2> ...\n      Use <freq_i> until step <max_step_i>, then switch to the next pair.\n  ≥3 values (odd):  --eval_freq <max_step_1> <freq_1> ... <final_freq>\n      Same as even, but the trailing <final_freq> applies from the\n      last max_step up to total_timesteps.\n  2 values: INVALID (ambiguous; use 1 or ≥3).\n")
     parser.add_argument("--video_freq", default=0, type=int)
     parser.add_argument("--n_eval_episodes", default=15, type=int)
+    parser.add_argument("--eval_all", action=argparse.BooleanOptionalAction, default=True, help="Evaluate all benchmark tasks (default: true). Use --no-eval_all to evaluate only tasks seen so far.",)
     parser.add_argument("--lr", default=3e-4, type=float)
     parser.add_argument("--gamma", default=0.99, type=float)
     parser.add_argument("--buffer_size", default=50_000, type=int)

@@ -86,6 +86,10 @@ def process_yaml(yaml_path, dry):
             if isinstance(v, bool):
                 if v:
                     cmd_lines.append(f"  --{k}")
+                elif k == "eval_all":
+                    # eval_all defaults to true, so false must be expressed
+                    # explicitly rather than omitted from the command.
+                    cmd_lines.append("  --no-eval_all")
             elif isinstance(v, list):
                 if len(v) == 1 and isinstance(v[0], str) and " " in v[0]:
                     v_str = v[0]
