@@ -1,0 +1,55 @@
+defaults:
+  env_name: CartPole
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  timesteps: 200_000
+  output_dir: dqn_cp_ji
+  output_file: dqn_cp_ji
+  dpi: 500 # optional: default is 300
+  show_timesteps: true
+  show_x_label: true
+  show_y_label: true
+  format: svg
+
+plots:
+  - title: 'DQN Joint Incremental (No Task ID)'
+    smooth: 15
+    linewidth: 1.6
+    zooms:
+      - t_start: 195_000
+        t_end: 210_000
+      - t_start: 395_000
+        t_end: 415_000
+    lines:
+      - method: 'dqn_cp_ji/dqn_cp_ji-s_<s>-e_False'
+        num_tasks: 3
+        test_env: 0
+        label: 'p Task 1'
+        color: "#3A9AB2"
+
+      - method: 'dqn_cp_ji/dqn_cp_ji-s_<s>-e_False'
+        num_tasks: 3
+        test_env: 1
+        label: 'p Task 2'
+        color: "#EBCC2A"
+
+
+  - title: 'DQN Joint Incremental (Task ID)'
+    smooth: 15
+    linewidth: 1.6
+    zooms:
+      - t_start: 195_000
+        t_end: 210_000
+      - t_start: 395_000
+        t_end: 415_000
+    lines:
+      - method: 'dqn_cp_ji/dqn_cp_ji-s_<s>-e_True'
+        num_tasks: 3
+        test_env: 0
+        label: 'p Task 1'
+        color: "#3A9AB2"
+
+      - method: 'dqn_cp_ji/dqn_cp_ji-s_<s>-e_True'
+        num_tasks: 3
+        test_env: 1
+        label: 'p Task 2'
+        color: "#EBCC2A"

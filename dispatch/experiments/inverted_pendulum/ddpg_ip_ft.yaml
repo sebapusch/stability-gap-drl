@@ -1,12 +1,9 @@
-name_prefix: "ddpg_ip_bc"
-project: "ddpg_ip_bc"
+name_prefix: "ddpg_ip_ft"
+project: "ddpg_ip_ft"
 algorithm: "ddpg"
 env: "inverted_pendulum"
-method: "behavior_cloning"
-benchmark: ["V1", "V2", "V3"]
+method: "fine_tune"
 batch_size: 128
-encode_task: true
-eval_all: false
 eval_freq: [5000, 10, 500]
 video_freq: 0
 n_eval_episodes: 15
@@ -15,11 +12,12 @@ buffer_size: 1_000_000
 target_update: 1000
 learning_starts: 1000
 total_timesteps: 75_000
-expert_buffer_size: 2_500
 network_size: 256
-time: "08:00:00"
+store_weights: true
+lr: 0.00025
+
+time: "7:00:00"
 
 ablations:
-  lr: [0.0001, 0.00025, 0.0005, 0.00075, 0.001]
-  behavior_cloning_coefficient: [0.1, 0.4, 0.7, 1.0]
   seed: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  encode_task: [true, false]
