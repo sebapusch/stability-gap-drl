@@ -1,0 +1,54 @@
+defaults:
+  env_name: InvertedPendulum
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  timesteps: 75_000
+  output_dir: ddpg_ip_ji
+  output_file: ddpg_ip_ji
+  dpi: 500 # optional: default is 300
+  show_timesteps: true
+  show_x_label: true
+  show_y_label: true
+  format: svg
+
+plots:
+  - title: 'DDPG Joint Incremental (No Task ID)'
+    smooth: 15
+    linewidth: 1.6
+    zooms:
+      - t_start: 70_000
+        t_end: 85_000
+      - t_start: 145_000
+        t_end: 160_000
+    lines:
+      - method: 'ddpg_ip_ji/ddpg_ip_ji-s_<s>-e_False'
+        num_tasks: 3
+        test_env: 0
+        label: 'P(1)'
+        color: "#3A9AB2"
+
+      - method: 'ddpg_ip_ji/ddpg_ip_ji-s_<s>-e_False'
+        num_tasks: 3
+        test_env: 1
+        label: 'P(2)'
+        color: "#EBCC2A"
+
+  - title: 'DDPG Joint Incremental (Task ID)'
+    smooth: 15
+    linewidth: 1.6
+    zooms:
+      - t_start: 70_000
+        t_end: 85_000
+      - t_start: 145_000
+        t_end: 160_000
+    lines:
+      - method: 'ddpg_ip_ji/ddpg_ip_ji-s_<s>-e_True'
+        num_tasks: 3
+        test_env: 0
+        label: 'P(1)'
+        color: "#3A9AB2"
+
+      - method: 'ddpg_ip_ji/ddpg_ip_ji-s_<s>-e_True'
+        num_tasks: 3
+        test_env: 1
+        label: 'P(2)'
+        color: "#EBCC2A"

@@ -1,0 +1,56 @@
+defaults:
+  env_name: InvertedPendulum
+  seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  timesteps: 75_000
+  output_dir: ddpg_ip_mt
+  output_file: ddpg_ip_mt
+  dpi: 500 # optional: default is 300
+  show_timesteps: true
+  show_x_label: true
+  show_y_label: true
+  format: svg
+
+plots:
+  - title: 'DDPG Multi Task (No Task ID)'
+    smooth: 15
+    linewidth: 1.6
+    lines:
+      - method: 'ddpg_ip_mt/ddpg_ip_mt-s_<s>-e_False'
+        num_tasks: 1
+        test_env: 0
+        label: 'P(1)'
+        color: "#3A9AB2"
+
+      - method: 'ddpg_ip_mt/ddpg_ip_mt-s_<s>-e_False'
+        num_tasks: 1
+        test_env: 1
+        label: 'P(2)'
+        color: "#EBCC2A"
+
+      - method: 'ddpg_ip_mt/ddpg_ip_mt-s_<s>-e_False'
+        num_tasks: 1
+        test_env: 2
+        label: 'P(3)'
+        color: "#F21A00"
+
+  - title: 'DDPG Multi Task (Task ID)'
+    smooth: 15
+    linewidth: 1.6
+    lines:
+      - method: 'ddpg_ip_mt/ddpg_ip_mt-s_<s>-e_True'
+        num_tasks: 1
+        test_env: 0
+        label: 'P(1)'
+        color: "#3A9AB2"
+
+      - method: 'ddpg_ip_mt/ddpg_ip_mt-s_<s>-e_True'
+        num_tasks: 1
+        test_env: 1
+        label: 'P(2)'
+        color: "#EBCC2A"
+
+      - method: 'ddpg_ip_mt/ddpg_ip_mt-s_<s>-e_True'
+        num_tasks: 1
+        test_env: 2
+        label: 'P(3)'
+        color: "#F21A00"
