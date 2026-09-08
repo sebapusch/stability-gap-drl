@@ -363,7 +363,6 @@ def main(
     encode_task: bool = False,
     balanced_sampling: bool = False,
     eval_all: bool = True,
-    bc_loss_fn: str = "kl",
     algorithm: str = "dqn",
     ent_coef: float | str | None = None,
     dqn_tau: float = 1.0,
@@ -406,7 +405,6 @@ def main(
 
     sac_build_kwargs = dict(
         **common_build_kwargs,
-        bc_loss_fn=bc_loss_fn,
         ent_coef=ent_coef,
     )
 
