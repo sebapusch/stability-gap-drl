@@ -1,5 +1,5 @@
-name_prefix: "sac_ip_ji"
-project: "sac_ip_ji"
+name_prefix: "sac_ip_mt"
+project: "sac_ip_mt"
 algorithm: "sac"
 env: "inverted_pendulum"
 method: "joint_incremental"

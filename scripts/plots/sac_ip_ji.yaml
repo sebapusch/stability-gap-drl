@@ -94,3 +94,45 @@ plots:
         test_env: 1
         label: 'P(2)'
         color: "#EBCC2A"
+
+  - title: 'SAC Joint Incremental (No Task ID, Alpha = 0.1)'
+    smooth: 15
+    linewidth: 1.6
+    zooms:
+      - t_start: 95_000
+        t_end: 110_000
+      - t_start: 195_000
+        t_end: 210_000
+    lines:
+      - method: 'sac_ip_ji/sac_ip_ji-e_01-s_<s>-e_False'
+        num_tasks: 3
+        test_env: 0
+        label: 'P(1)'
+        color: "#3A9AB2"
+
+      - method: 'sac_ip_ji/sac_ip_ji-e_01-s_<s>-e_False'
+        num_tasks: 3
+        test_env: 1
+        label: 'P(2)'
+        color: "#EBCC2A"
+
+  - title: 'SAC Joint Incremental (Task ID, Alpha = 0.1)'
+    smooth: 15
+    linewidth: 1.6
+    zooms:
+      - t_start: 95_000
+        t_end: 110_000
+      - t_start: 195_000
+        t_end: 210_000
+    lines:
+      - method: 'sac_ip_ji/sac_ip_ji-e_01-s_<s>-e_True'
+        num_tasks: 3
+        test_env: 0
+        label: 'P(1)'
+        color: "#3A9AB2"
+
+      - method: 'sac_ip_ji/sac_ip_ji-e_01-s_<s>-e_True'
+        num_tasks: 3
+        test_env: 1
+        label: 'P(2)'
+        color: "#EBCC2A"
