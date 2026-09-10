@@ -16,9 +16,9 @@ plots:
     linewidth: 1.6
     zooms:
       - t_start: 70_000
-        t_end: 85_000
+        t_end: 100_000
       - t_start: 145_000
-        t_end: 160_000
+        t_end: 175_000
     lines:
       - method: 'ddpg_ip_ji/ddpg_ip_ji-s_<s>-e_False'
         num_tasks: 3
@@ -37,9 +37,9 @@ plots:
     linewidth: 1.6
     zooms:
       - t_start: 70_000
-        t_end: 85_000
+        t_end: 100_000
       - t_start: 145_000
-        t_end: 160_000
+        t_end: 175_000
     lines:
       - method: 'ddpg_ip_ji/ddpg_ip_ji-s_<s>-e_True'
         num_tasks: 3

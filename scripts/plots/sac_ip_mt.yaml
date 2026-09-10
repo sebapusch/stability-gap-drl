@@ -15,19 +15,19 @@ plots:
     smooth: 15
     linewidth: 1.6
     lines:
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_auto-s_<s>-e_False'
+      - method: 'sac_ip_mt/sac_ip_mt-e_auto-s_<s>-e_False'
         num_tasks: 1
         test_env: 0
         label: 'P(1)'
         color: "#3A9AB2"
 
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_auto-s_<s>-e_False'
+      - method: 'sac_ip_mt/sac_ip_mt-e_auto-s_<s>-e_False'
         num_tasks: 1
         test_env: 1
         label: 'P(2)'
         color: "#EBCC2A"
 
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_auto-s_<s>-e_False'
+      - method: 'sac_ip_mt/sac_ip_mt-e_auto-s_<s>-e_False'
         num_tasks: 1
         test_env: 2
         label: 'P(3)'
@@ -37,19 +37,19 @@ plots:
     smooth: 15
     linewidth: 1.6
     lines:
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_auto-s_<s>-e_True'
+      - method: 'sac_ip_mt/sac_ip_mt-e_auto-s_<s>-e_True'
         num_tasks: 1
         test_env: 0
         label: 'P(1)'
         color: "#3A9AB2"
 
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_auto-s_<s>-e_True'
+      - method: 'sac_ip_mt/sac_ip_mt-e_auto-s_<s>-e_True'
         num_tasks: 1
         test_env: 1
         label: 'P(2)'
         color: "#EBCC2A"
 
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_auto-s_<s>-e_True'
+      - method: 'sac_ip_mt/sac_ip_mt-e_auto-s_<s>-e_True'
         num_tasks: 1
         test_env: 2
         label: 'P(3)'
@@ -59,19 +59,19 @@ plots:
     smooth: 15
     linewidth: 1.6
     lines:
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_1-s_<s>-e_False'
+      - method: 'sac_ip_mt/sac_ip_mt-e_1-s_<s>-e_False'
         num_tasks: 1
         test_env: 0
         label: 'P(1)'
         color: "#3A9AB2"
 
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_1-s_<s>-e_False'
+      - method: 'sac_ip_mt/sac_ip_mt-e_1-s_<s>-e_False'
         num_tasks: 1
         test_env: 1
         label: 'P(2)'
         color: "#EBCC2A"
 
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_1-s_<s>-e_False'
+      - method: 'sac_ip_mt/sac_ip_mt-e_1-s_<s>-e_False'
         num_tasks: 1
         test_env: 2
         label: 'P(3)'
@@ -81,19 +81,19 @@ plots:
     smooth: 15
     linewidth: 1.6
     lines:
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_1-s_<s>-e_True'
+      - method: 'sac_ip_mt/sac_ip_mt-e_1-s_<s>-e_True'
         num_tasks: 1
         test_env: 0
         label: 'P(1)'
         color: "#3A9AB2"
 
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_1-s_<s>-e_True'
+      - method: 'sac_ip_mt/sac_ip_mt-e_1-s_<s>-e_True'
         num_tasks: 1
         test_env: 1
         label: 'P(2)'
         color: "#EBCC2A"
 
-      - method: 'sac_ip_mt/sac_ip_ji_mt-e_1-s_<s>-e_True'
+      - method: 'sac_ip_mt/sac_ip_mt-e_1-s_<s>-e_True'
         num_tasks: 1
         test_env: 2
         label: 'P(3)'
