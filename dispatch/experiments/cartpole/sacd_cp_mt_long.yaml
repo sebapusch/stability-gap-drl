@@ -1,0 +1,25 @@
+name_prefix: "sacd_cp_ji_mt_long"
+project: "sacd_cp_mt_long"
+algorithm: "sacd"
+env: "cartpole"
+method: "joint_incremental"
+mode: "multitask"
+batch_size: 128
+eval_freq: 500
+video_freq: 0
+n_eval_episodes: 15
+lr: 0.00075
+gamma: 0.99
+buffer_size: 500_000
+target_update: 1000
+learning_starts: 1000
+total_timesteps: 300_000
+network_size: 256
+ent_coef: 1.0
+store_weights: true
+encode_task: false
+
+time: "04:00:00"
+
+ablations:
+  seed: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
