@@ -3,13 +3,9 @@ from stable_baselines3.continual.off_policy_joint_incremental import OffPolicyJo
 from stable_baselines3.sacd.sacd import SACD
 
 
-class SACD_JointIncremental(SACD, OffPolicyJointIncremental):
-    """SACD with experience replay across tasks.
+class SACD_JointIncremental(OffPolicyJointIncremental, SACD):
+    save = SACD.save
 
-    Uses a MultiReplayBuffer that partitions experience by task.
-    On task change, resets optimizer state and advances the active
-    buffer partition.
-    """
     def __init__(self, buffer_size: int, n_tasks: int, env: GymEnv, balanced_sampling: bool = False, **kwargs) -> None:
         kwargs['env'] = env
         SACD.__init__(self, **kwargs)

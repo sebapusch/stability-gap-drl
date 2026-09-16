@@ -5,7 +5,9 @@ from stable_baselines3.continual.off_policy_joint_incremental import (
 from stable_baselines3.ddpg.ddpg import DDPG
 
 
-class DDPG_JointIncremental(DDPG, OffPolicyJointIncremental):
+class DDPG_JointIncremental(OffPolicyJointIncremental, DDPG):
+    save = DDPG.save
+
     def __init__(
         self,
         buffer_size: int,
@@ -21,3 +23,4 @@ class DDPG_JointIncremental(DDPG, OffPolicyJointIncremental):
     def reset_optimizer(self) -> None:
         self.policy.actor.optimizer.state.clear()
         self.policy.critic.optimizer.state.clear()
+

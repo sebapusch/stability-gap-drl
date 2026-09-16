@@ -39,4 +39,5 @@ class ContinualLearning(Protocol):
     def save(
         self,
         path: str,
-    ) -> None: ...
+    ) -> None:
+        raise NotImplementedError
