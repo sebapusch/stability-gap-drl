@@ -5,7 +5,7 @@ from stable_baselines3.continual.off_policy_joint_incremental import (
 from stable_baselines3.ddpg.ddpg import DDPG
 
 
-class DDPG_JointIncremental(OffPolicyJointIncremental, DDPG):
+class DDPG_JointIncremental(DDPG, OffPolicyJointIncremental):
     def __init__(
         self,
         buffer_size: int,

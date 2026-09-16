@@ -5,7 +5,7 @@ from stable_baselines3.continual.off_policy_joint_incremental import (
 )
 
 
-class DQN_JointIncremental(OffPolicyJointIncremental, DQN):
+class DQN_JointIncremental(DQN, OffPolicyJointIncremental):
     def __init__(
         self,
         buffer_size: int,

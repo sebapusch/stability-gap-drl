@@ -3,7 +3,7 @@ from stable_baselines3.continual.off_policy_joint_incremental import OffPolicyJo
 from stable_baselines3.sacd.sacd import SACD
 
 
-class SACD_JointIncremental(OffPolicyJointIncremental, SACD):
+class SACD_JointIncremental(SACD, OffPolicyJointIncremental):
     """SACD with experience replay across tasks.
 
     Uses a MultiReplayBuffer that partitions experience by task.
