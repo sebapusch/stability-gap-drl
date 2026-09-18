@@ -649,18 +649,26 @@ def load_eval_data(
     return result
 
 
-def compute_iqm_curve(
+def compute_aggregate_curve(
     method: str,
     test_env: str,
     seeds: list[int],
     train_envs: list[str],
     timesteps_per_env: int,
     data_dir: Path,
+    aggregation: str = "iqm",
     n_bootstrap: int = 10_000,
 ):
     """
-    Compute IQM + 95% CI curve for a method on a test environment.
+    Compute an aggregate reward curve for a method on a test environment.
+
+    ``aggregation="iqm"`` returns the IQM and its 95% bootstrap confidence
+    interval. ``aggregation="mean"`` returns the arithmetic mean and a band
+    one standard error below and above the mean.
     """
+    if aggregation not in {"iqm", "mean"}:
+        raise ValueError(f"Unknown aggregation {aggregation!r}; expected 'iqm' or 'mean'.")
+
     seed_frames = []
     for seed in seeds:
         df = load_eval_data(
@@ -692,24 +700,55 @@ def compute_iqm_curve(
 
     valid_ts = pivot.index.values
 
-    # Group rows by their set of available seeds so we can batch-bootstrap
+    # Group rows by their set of available seeds so we can aggregate dense
+    # matrices in batches even when seed availability varies over time.
     present_mask = pivot.notna().values  # (n_ts, n_seed_cols)
     patterns = [tuple(row) for row in present_mask]
     unique_patterns = list(set(patterns))
 
-    iqm_values = np.empty(len(valid_ts))
-    ci_lows = np.empty(len(valid_ts))
-    ci_highs = np.empty(len(valid_ts))
+    aggregate_values = np.empty(len(valid_ts))
+    interval_lows = np.empty(len(valid_ts))
+    interval_highs = np.empty(len(valid_ts))
 
     for pat in unique_patterns:
         row_indices = np.array([i for i, p in enumerate(patterns) if p == pat])
         col_mask = np.array(pat)
         # Extract the dense (n_rows, n_present_seeds) sub-matrix
         seed_matrix = pivot.values[np.ix_(row_indices, col_mask)]
-        # We call bootstrap_iqm on the subset of seeds
-        iqm, cl, ch = bootstrap_iqm(seed_matrix, n_bootstrap=n_bootstrap, confidence=0.95)
-        iqm_values[row_indices] = iqm
-        ci_lows[row_indices] = cl
-        ci_highs[row_indices] = ch
+        if aggregation == "iqm":
+            center, lower, upper = bootstrap_iqm(
+                seed_matrix, n_bootstrap=n_bootstrap, confidence=0.95
+            )
+        else:
+            center = np.mean(seed_matrix, axis=1)
+            stderr = np.std(seed_matrix, axis=1, ddof=1) / np.sqrt(seed_matrix.shape[1])
+            lower = center - stderr
+            upper = center + stderr
 
-    return valid_ts, iqm_values, ci_lows, ci_highs
+        aggregate_values[row_indices] = center
+        interval_lows[row_indices] = lower
+        interval_highs[row_indices] = upper
+
+    return valid_ts, aggregate_values, interval_lows, interval_highs
+
+
+def compute_iqm_curve(
+    method: str,
+    test_env: str,
+    seeds: list[int],
+    train_envs: list[str],
+    timesteps_per_env: int,
+    data_dir: Path,
+    n_bootstrap: int = 10_000,
+):
+    """Compute an IQM + 95% bootstrap CI curve."""
+    return compute_aggregate_curve(
+        method=method,
+        test_env=test_env,
+        seeds=seeds,
+        train_envs=train_envs,
+        timesteps_per_env=timesteps_per_env,
+        data_dir=data_dir,
+        aggregation="iqm",
+        n_bootstrap=n_bootstrap,
+    )

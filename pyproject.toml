@@ -8,6 +8,7 @@ dependencies = [
     "gymnasium[classic-control]>=1.2.3",
     "gymnax>=0.0.9",
     "highway-env>=1.11",
+    "ipykernel>=7.3.0",
     "jax>=0.6.2",
     "matplotlib>=3.10.8",
     "metaworld>=3.0.0",

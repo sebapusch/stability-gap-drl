@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate IQM plots with 95% CI for each test environment.
+Generate aggregate reward plots for each test environment.
 
 Supports two modes:
 
@@ -9,6 +9,10 @@ Supports two modes:
 
 2. YAML config mode: produces a grid of subplots from a config file.
    python plot_iqm.py --config path/to/config.yaml
+
+Pass --compute-only to write the line data to CSV without creating figures.
+Pass --aggregation mean to plot the mean with a standard-error band instead
+of the default IQM with a 95% bootstrap confidence interval.
 """
 
 import argparse
@@ -22,7 +26,7 @@ import matplotlib.transforms as mtransforms
 from matplotlib.ticker import FuncFormatter
 
 from common import (
-    compute_iqm_curve,
+    compute_aggregate_curve,
     smooth_peak_aware as _smooth,
 )
 
@@ -42,8 +46,11 @@ TEST_ENVS = ["0", "1", "2"]
 TIMESTEPS_PER_ENV = 40_000
 FS = 1.2
 X_LABEL = "Cumulative training timesteps"
-Y_LABEL = "IQM episodic return (95% CI)"
-CACHE_SCHEMA_VERSION = "single-run-v1"
+Y_LABELS = {
+    "iqm": "IQM episodic return (95% CI)",
+    "mean": "Mean episodic return (standard error)",
+}
+CACHE_SCHEMA_VERSION = "single-run-v2"
 
 # Known labels
 METHOD_LABELS = {
@@ -77,40 +84,90 @@ def get_color(method: str, index: int) -> str:
     return COLOR_PALETTE[index % len(COLOR_PALETTE)]
 
 
-def make_cache_key(methods: list[str], prefix: str) -> str:
+def make_cache_key(methods: list[str], prefix: str, aggregation: str = "iqm") -> str:
     """Generate a short hash from the sorted methods + prefix combination."""
-    canonical = CACHE_SCHEMA_VERSION + "||" + "|".join(sorted(methods)) + "||" + prefix
+    canonical = "||".join((
+        CACHE_SCHEMA_VERSION,
+        aggregation,
+        "|".join(sorted(methods)),
+        prefix,
+    ))
     return hashlib.sha256(canonical.encode()).hexdigest()[:12]
 
 
-def cache_path_for(cache_key: str, method: str, test_env: str) -> Path:
+def cache_path_for(cache_key: str, method: str, test_env: str, aggregation: str) -> Path:
     """Return the CSV cache path for a specific method/test_env under a cache key."""
     safe_method = method.replace("/", "__")
-    return CACHE_DIR / cache_key / f"{safe_method}_{test_env}.csv"
+    return CACHE_DIR / cache_key / f"{safe_method}_{test_env}_{aggregation}.csv"
 
 
-def save_to_cache(cache_key: str, method: str, test_env: str,
-                  ts: np.ndarray, iqm: np.ndarray,
-                  ci_lo: np.ndarray, ci_hi: np.ndarray):
-    """Save computed IQM curve to a CSV cache file."""
-    path = cache_path_for(cache_key, method, test_env)
+def save_to_cache(cache_key: str, method: str, test_env: str, aggregation: str,
+                  ts: np.ndarray, center: np.ndarray,
+                  lower: np.ndarray, upper: np.ndarray):
+    """Save a computed aggregate curve to a CSV cache file."""
+    path = cache_path_for(cache_key, method, test_env, aggregation)
     path.parent.mkdir(parents=True, exist_ok=True)
     df = pd.DataFrame({
-        "timestep": ts, "iqm": iqm, "ci_low": ci_lo, "ci_high": ci_hi,
+        "timestep": ts, "center": center, "lower": lower, "upper": upper,
     })
     df.to_csv(path, index=False)
 
 
-def load_from_cache(cache_key: str, method: str, test_env: str):
-    """Load cached IQM curve. Returns (ts, iqm, ci_lo, ci_hi) or None."""
-    path = cache_path_for(cache_key, method, test_env)
+def load_from_cache(cache_key: str, method: str, test_env: str, aggregation: str):
+    """Load a cached aggregate curve. Returns (ts, center, lower, upper)."""
+    path = cache_path_for(cache_key, method, test_env, aggregation)
     if not path.exists():
         return None
     df = pd.read_csv(path)
     return (
-        df["timestep"].values, df["iqm"].values,
-        df["ci_low"].values, df["ci_high"].values,
+        df["timestep"].values, df["center"].values,
+        df["lower"].values, df["upper"].values,
     )
+
+
+def compute_line_data(
+    cache_key: str,
+    method: str,
+    test_env: str,
+    *,
+    label: str,
+    seeds: list[int],
+    train_envs: list[str],
+    timesteps_per_env: int,
+    aggregation: str,
+    smooth: int | None,
+    use_cache: bool,
+) -> pd.DataFrame:
+    """Compute the exact (optionally smoothed) data used to draw one line."""
+    cached = load_from_cache(cache_key, method, test_env, aggregation) if use_cache else None
+    if cached is not None:
+        ts, center, lower, upper = cached
+        print(f"Loaded cached {aggregation} for {label} on {test_env}")
+    else:
+        print(f"Computing {aggregation} for {label} on {test_env}...")
+        ts, center, lower, upper = compute_aggregate_curve(
+            method,
+            test_env,
+            seeds=seeds,
+            train_envs=train_envs,
+            timesteps_per_env=timesteps_per_env,
+            data_dir=DATA_DIR,
+            aggregation=aggregation,
+        )
+        if len(ts) > 0:
+            save_to_cache(
+                cache_key, method, test_env, aggregation, ts, center, lower, upper
+            )
+
+    if len(ts) == 0:
+        return pd.DataFrame(columns=["timestep", "center", "lower", "upper"])
+
+    return pd.DataFrame({
+        "timestep": ts,
+        "center": _smooth(center, smooth),
+        "lower": _smooth(lower, smooth),
+        "upper": _smooth(upper, smooth),
+    })
 
 
 def load_config(path: str) -> dict:
@@ -162,12 +219,18 @@ def load_config(path: str) -> dict:
             raise ValueError(f"Plot entry {i} key 'output_file' must be a string.")
         if "linewidth" in plot and not isinstance(plot["linewidth"], (int, float)):
             raise ValueError(f"Plot entry {i} key 'linewidth' must be a number.")
+        if plot.get("aggregation", "iqm") not in Y_LABELS:
+            raise ValueError(
+                f"Plot entry {i} key 'aggregation' must be 'iqm' or 'mean'."
+            )
     if "defaults" in cfg and isinstance(cfg["defaults"], dict):
         for key in ["format", "ext", "output_file", "output_dir"]:
             if key in cfg["defaults"] and not isinstance(cfg["defaults"][key], str):
                 raise ValueError(f"YAML config 'defaults' key '{key}' must be a string.")
         if "linewidth" in cfg["defaults"] and not isinstance(cfg["defaults"]["linewidth"], (int, float)):
             raise ValueError("YAML config 'defaults' key 'linewidth' must be a number.")
+        if cfg["defaults"].get("aggregation", "iqm") not in Y_LABELS:
+            raise ValueError("YAML config 'defaults' key 'aggregation' must be 'iqm' or 'mean'.")
     return cfg
 
 
@@ -203,7 +266,8 @@ def _format_timestep(value: float, _position: int) -> str:
 
 
 def _decorate_ax(ax, train_envs, timesteps_per_env, title=None, test_env=None, zoomed=False, show_task_labels=True,
-                 show_timesteps=True, show_y_label=True, show_x_label=True):
+                 show_timesteps=True, show_y_label=True, show_x_label=True,
+                 y_label=Y_LABELS["iqm"]):
     """Add environment boundary lines, labels, and grid to an axis."""
     fs = FS
     x_lo, x_hi = ax.get_xlim()
@@ -253,7 +317,7 @@ def _decorate_ax(ax, train_envs, timesteps_per_env, title=None, test_env=None, z
         if legend:
             legend.remove()
         if show_y_label:
-            ax.set_ylabel(Y_LABEL, fontsize=10 * fs)
+            ax.set_ylabel(y_label, fontsize=10 * fs)
         ax.tick_params(axis="both", labelsize=10 * fs)
         ax.tick_params(axis="x", labelbottom=show_timesteps)
         transition_ticks = [
@@ -284,7 +348,7 @@ def _decorate_ax(ax, train_envs, timesteps_per_env, title=None, test_env=None, z
             task_label_pad = 34 if show_task_labels else 6
             ax.set_xlabel(X_LABEL, fontsize=10 * fs, labelpad=task_label_pad)
         if show_y_label:
-            ax.set_ylabel(Y_LABEL, fontsize=10 * fs)
+            ax.set_ylabel(y_label, fontsize=10 * fs)
         if title:
             ax.set_title(title, pad=14, fontsize=11 * fs)
         handles, labels = ax.get_legend_handles_labels()
@@ -325,6 +389,8 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
         plot_envs = _line_envs(plot_cfg["lines"][0], envs)
 
     test_env = plot_cfg.get("test_env")
+    aggregation = plot_cfg.get("aggregation", defaults.get("aggregation", "iqm"))
+    y_label = Y_LABELS[aggregation]
     title = plot_cfg.get("title", None)
     if title is None and env_name:
         if test_env:
@@ -341,45 +407,39 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
         line_envs = _line_envs(line_cfg, plot_envs)
         line_timesteps = line_cfg.get("timesteps", plot_timesteps)
 
-        cached = None
-        if use_cache:
-            cached = load_from_cache(cache_key, method, line_test_env)
-
-        if cached is not None:
-            ts, iqm, ci_lo, ci_hi = cached
-            print(f"Loaded cached IQM for {label} on {line_test_env}")
-        else:
-            print(f"Computing IQM for {label} on {line_test_env}...")
-            ts, iqm, ci_lo, ci_hi = compute_iqm_curve(
-                method, line_test_env,
-                seeds=seeds,
-                train_envs=line_envs,
-                timesteps_per_env=line_timesteps,
-                data_dir=DATA_DIR,
-            )
-            if len(ts) > 0:
-                save_to_cache(cache_key, method, line_test_env, ts, iqm, ci_lo, ci_hi)
-
-        if len(ts) == 0:
+        smooth = plot_cfg.get("smooth", defaults.get("smooth"))
+        line_data = compute_line_data(
+            cache_key,
+            method,
+            line_test_env,
+            label=label,
+            seeds=seeds,
+            train_envs=line_envs,
+            timesteps_per_env=line_timesteps,
+            aggregation=aggregation,
+            smooth=smooth,
+            use_cache=use_cache,
+        )
+        if line_data.empty:
             print(f"  No data for {method}/{line_test_env}")
             continue
 
-        smooth = plot_cfg.get("smooth", defaults.get("smooth"))
-        iqm_smoothed = _smooth(iqm, smooth)
-        ci_lo_smoothed = _smooth(ci_lo, smooth)
-        ci_hi_smoothed = _smooth(ci_hi, smooth)
+        ts = line_data["timestep"].to_numpy()
+        center_smoothed = line_data["center"].to_numpy()
+        lower_smoothed = line_data["lower"].to_numpy()
+        upper_smoothed = line_data["upper"].to_numpy()
 
         linewidth = line_cfg.get("linewidth", plot_cfg.get("linewidth", defaults.get("linewidth", 0.7)))
 
         # Plot on main
-        ax_main.plot(ts, iqm_smoothed, label=label, color=color, linewidth=linewidth)
-        ax_main.fill_between(ts, ci_lo_smoothed, ci_hi_smoothed, alpha=0.2, color=color)
+        ax_main.plot(ts, center_smoothed, label=label, color=color, linewidth=linewidth)
+        ax_main.fill_between(ts, lower_smoothed, upper_smoothed, alpha=0.2, color=color)
         n_lines_plotted += 1
 
         # Plot on each zoom axis
         for i, z_cfg in enumerate(zooms):
-            ax_zooms[i].plot(ts, iqm_smoothed, label=label, color=color, linewidth=linewidth)
-            ax_zooms[i].fill_between(ts, ci_lo_smoothed, ci_hi_smoothed, alpha=0.2, color=color)
+            ax_zooms[i].plot(ts, center_smoothed, label=label, color=color, linewidth=linewidth)
+            ax_zooms[i].fill_between(ts, lower_smoothed, upper_smoothed, alpha=0.2, color=color)
 
     if n_lines_plotted == 0:
         plt.close(fig)
@@ -391,11 +451,12 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
 
     # Decorate main axis
     _decorate_ax(ax_main, plot_envs, plot_timesteps, title=None, test_env=test_env, zoomed=False, show_task_labels=True,
-                 show_timesteps=show_timesteps, show_y_label=False, show_x_label=show_x_label)
+                 show_timesteps=show_timesteps, show_y_label=False, show_x_label=show_x_label,
+                 y_label=y_label)
     if title:
         fig.suptitle(title, fontsize=11 * FS, y=0.965)
     if show_y_label:
-        fig.supylabel(Y_LABEL, fontsize=10 * FS, x=0.015)
+        fig.supylabel(y_label, fontsize=10 * FS, x=0.015)
 
     # Sync y limits and mark the ranges represented by the zoom panels.
     y_min, y_max = ax_main.get_ylim()
@@ -408,7 +469,8 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
 
         # Decorate zoom axis (hide task labels)
         _decorate_ax(ax_zooms[i], plot_envs, plot_timesteps, title=None, test_env=test_env, zoomed=True, show_task_labels=False,
-                     show_timesteps=show_timesteps, show_y_label=False, show_x_label=show_x_label)
+                     show_timesteps=show_timesteps, show_y_label=False, show_x_label=show_x_label,
+                     y_label=y_label)
 
         # Draw a lightly shaded range on the main plot.  The visible outline is
         # also where the connector lines will terminate.
@@ -459,6 +521,90 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
     print(f"Saved zoom plot to {out_path}")
 
 
+def grid_cache_key(config: dict) -> str:
+    """Return the cache key shared by plotting and compute-only config mode."""
+    defaults = config.get("defaults", {})
+    timesteps = defaults.get("timesteps", TIMESTEPS_PER_ENV)
+    envs = defaults.get("envs", TRAIN_ENVS)
+    output_file = defaults.get("output_file", "iqm_grid")
+    all_methods = []
+    for plot_cfg in config["plots"]:
+        plot_timesteps = plot_cfg.get("timesteps", timesteps)
+        aggregation = plot_cfg.get("aggregation", defaults.get("aggregation", "iqm"))
+        for line_cfg in plot_cfg["lines"]:
+            line_envs = _line_envs(line_cfg, plot_cfg.get("envs", envs))
+            line_timesteps = line_cfg.get("timesteps", plot_timesteps)
+            all_methods.append(
+                f"{line_cfg['method']}_{'-'.join(line_envs)}_{line_timesteps}_{aggregation}"
+            )
+    return make_cache_key(all_methods, output_file, aggregation="configured")
+
+
+def compute_plot_data(config: dict, use_cache: bool = True) -> pd.DataFrame:
+    """Compute all YAML-configured lines and return the values used for plotting.
+
+    The returned frame has one row per timestep and includes plot/line metadata
+    so lines with the same label or method remain distinguishable.
+    """
+    defaults = config.get("defaults", {})
+    seeds = defaults.get("seeds", SEEDS)
+    timesteps = defaults.get("timesteps", TIMESTEPS_PER_ENV)
+    envs = defaults.get("envs", TRAIN_ENVS)
+    cache_key = grid_cache_key(config)
+    frames = []
+
+    if use_cache:
+        print(f"Cache key: {cache_key}  (use --no-cache to force recompute)")
+
+    for plot_idx, plot_cfg in enumerate(config["plots"]):
+        plot_timesteps = plot_cfg.get("timesteps", timesteps)
+        plot_envs = plot_cfg.get("envs", envs)
+        if "envs" not in plot_cfg and plot_cfg.get("lines"):
+            plot_envs = _line_envs(plot_cfg["lines"][0], envs)
+        plot_test_env = plot_cfg.get("test_env")
+        aggregation = plot_cfg.get("aggregation", defaults.get("aggregation", "iqm"))
+
+        for line_idx, line_cfg in enumerate(plot_cfg["lines"]):
+            method = line_cfg["method"]
+            label = line_cfg.get("label", get_label(method))
+            test_env = line_cfg.get("test_env", plot_test_env)
+            line_envs = _line_envs(line_cfg, plot_envs)
+            line_timesteps = line_cfg.get("timesteps", plot_timesteps)
+            smooth = plot_cfg.get("smooth", defaults.get("smooth"))
+            frame = compute_line_data(
+                cache_key,
+                method,
+                test_env,
+                label=label,
+                seeds=seeds,
+                train_envs=line_envs,
+                timesteps_per_env=line_timesteps,
+                aggregation=aggregation,
+                smooth=smooth,
+                use_cache=use_cache,
+            )
+            if frame.empty:
+                print(f"  No data for {method}/{test_env}")
+                continue
+
+            frame.insert(0, "test_env", test_env)
+            frame.insert(0, "aggregation", aggregation)
+            frame.insert(0, "method", method)
+            frame.insert(0, "label", label)
+            frame.insert(0, "line_index", line_idx)
+            frame.insert(0, "plot_title", plot_cfg.get("title", ""))
+            frame.insert(0, "plot_index", plot_idx)
+            frames.append(frame)
+
+    columns = [
+        "plot_index", "plot_title", "line_index", "label", "method",
+        "test_env", "aggregation", "timestep", "center", "lower", "upper",
+    ]
+    if not frames:
+        return pd.DataFrame(columns=columns)
+    return pd.concat(frames, ignore_index=True)[columns]
+
+
 def plot_grid(config: dict, use_cache: bool):
     """Main driver for YAML-config grid plotting."""
     defaults = config.get("defaults", {})
@@ -478,14 +624,7 @@ def plot_grid(config: dict, use_cache: bool):
         plot_output_dir = OUTPUT_DIR
     plot_output_dir.mkdir(parents=True, exist_ok=True)
 
-    all_methods = []
-    for p in plots:
-        p_timesteps = p.get("timesteps", timesteps)
-        for line in p["lines"]:
-            l_envs = _line_envs(line, p.get("envs", envs))
-            l_timesteps = line.get("timesteps", p_timesteps)
-            all_methods.append(f"{line['method']}_{'-'.join(l_envs)}_{l_timesteps}")
-    cache_key = make_cache_key(all_methods, output_file)
+    cache_key = grid_cache_key(config)
     if use_cache:
         print(f"Cache key: {cache_key}  (use --no-cache to force recompute)")
 
@@ -533,6 +672,8 @@ def plot_grid(config: dict, use_cache: bool):
             plot_envs = _line_envs(plot_cfg["lines"][0], envs)
 
         test_env = plot_cfg.get("test_env")
+        aggregation = plot_cfg.get("aggregation", defaults.get("aggregation", "iqm"))
+        y_label = Y_LABELS[aggregation]
         title = plot_cfg.get("title", None)
         if title is None and env_name:
             if test_env:
@@ -549,37 +690,31 @@ def plot_grid(config: dict, use_cache: bool):
             line_envs = _line_envs(line_cfg, plot_envs)
             line_timesteps = line_cfg.get("timesteps", plot_timesteps)
 
-            cached = None
-            if use_cache:
-                cached = load_from_cache(cache_key, method, line_test_env)
-
-            if cached is not None:
-                ts, iqm, ci_lo, ci_hi = cached
-                print(f"Loaded cached IQM for {label} on {line_test_env}")
-            else:
-                print(f"Computing IQM for {label} on {line_test_env}...")
-                ts, iqm, ci_lo, ci_hi = compute_iqm_curve(
-                    method, line_test_env,
-                    seeds=seeds,
-                    train_envs=line_envs,
-                    timesteps_per_env=line_timesteps,
-                    data_dir=DATA_DIR,
-                )
-                if len(ts) > 0:
-                    save_to_cache(cache_key, method, line_test_env, ts, iqm, ci_lo, ci_hi)
-
-            if len(ts) == 0:
+            smooth = plot_cfg.get("smooth", defaults.get("smooth"))
+            line_data = compute_line_data(
+                cache_key,
+                method,
+                line_test_env,
+                label=label,
+                seeds=seeds,
+                train_envs=line_envs,
+                timesteps_per_env=line_timesteps,
+                aggregation=aggregation,
+                smooth=smooth,
+                use_cache=use_cache,
+            )
+            if line_data.empty:
                 print(f"  No data for {method}/{line_test_env}")
                 continue
 
-            smooth = plot_cfg.get("smooth", defaults.get("smooth"))
-            iqm = _smooth(iqm, smooth)
-            ci_lo = _smooth(ci_lo, smooth)
-            ci_hi = _smooth(ci_hi, smooth)
+            ts = line_data["timestep"].to_numpy()
+            center = line_data["center"].to_numpy()
+            lower = line_data["lower"].to_numpy()
+            upper = line_data["upper"].to_numpy()
 
             linewidth = line_cfg.get("linewidth", plot_cfg.get("linewidth", defaults.get("linewidth", 0.7)))
-            ax.plot(ts, iqm, label=label, color=color, linewidth=linewidth)
-            ax.fill_between(ts, ci_lo, ci_hi, alpha=0.2, color=color)
+            ax.plot(ts, center, label=label, color=color, linewidth=linewidth)
+            ax.fill_between(ts, lower, upper, alpha=0.2, color=color)
             n_lines_plotted += 1
 
         if n_lines_plotted == 0:
@@ -598,6 +733,7 @@ def plot_grid(config: dict, use_cache: bool):
         _decorate_ax(
             ax, plot_envs, plot_timesteps, title=title, test_env=test_env, zoomed=zoomed,
             show_timesteps=show_timesteps, show_y_label=show_y_label, show_x_label=show_x_label,
+            y_label=y_label,
         )
 
     for idx in range(n_plots, nrows * ncols):
@@ -615,7 +751,7 @@ def plot_grid(config: dict, use_cache: bool):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Generate IQM plots with 95% CI for each test environment.",
+        description="Generate aggregate reward plots for each test environment.",
     )
     parser.add_argument(
         "--config", type=str, default=None,
@@ -632,6 +768,19 @@ def parse_args():
     parser.add_argument(
         "--no-cache", action="store_true",
         help="Ignore cached results and recompute everything.",
+    )
+    parser.add_argument(
+        "--aggregation", choices=sorted(Y_LABELS), default=None,
+        help=("Statistic and uncertainty band to plot: 'iqm' uses a 95%% bootstrap CI; "
+              "'mean' uses standard error (default: iqm)."),
+    )
+    parser.add_argument(
+        "--compute-only", action="store_true",
+        help="Compute the plotted line data, save it as CSV, and skip figure generation.",
+    )
+    parser.add_argument(
+        "--data-output", type=str, default=None,
+        help="CSV path for --compute-only (default: <plot output>/<name>_data.csv).",
     )
     parser.add_argument(
         "--envs", "--env_order", nargs="+", default=TEST_ENVS,
@@ -679,6 +828,22 @@ def main():
             defaults["output_dir"] = args.output_dir
         if args.smooth is not None and "smooth" not in defaults:
             defaults["smooth"] = args.smooth
+        if args.aggregation is not None:
+            defaults["aggregation"] = args.aggregation
+        if args.compute_only:
+            data = compute_plot_data(cfg, use_cache)
+            if data.empty:
+                raise RuntimeError("No data found for any configured plot line.")
+            if args.data_output:
+                data_path = Path(args.data_output)
+            else:
+                output_dir = OUTPUT_DIR / defaults.get("output_dir", "")
+                data_path = output_dir / f"{defaults.get('output_file', 'iqm_grid')}_data.csv"
+            data_path.parent.mkdir(parents=True, exist_ok=True)
+            data.to_csv(data_path, index=False)
+            print(f"Saved plot data to {data_path}")
+            print("Done!")
+            return
         plot_grid(cfg, use_cache)
         print("Done!")
         return
@@ -694,6 +859,7 @@ def main():
     t_start = args.t_start
     t_end = args.t_end
     smooth = args.smooth
+    aggregation = args.aggregation or "iqm"
 
     if output_subdir:
         plot_output_dir = OUTPUT_DIR / output_subdir
@@ -701,44 +867,81 @@ def main():
         plot_output_dir = OUTPUT_DIR
     plot_output_dir.mkdir(parents=True, exist_ok=True)
 
-    cache_key = make_cache_key(methods, prefix)
+    cache_key = make_cache_key(methods, prefix, aggregation=aggregation)
     if use_cache:
         print(f"Cache key: {cache_key}  (use --no-cache to force recompute)")
+
+    if args.compute_only:
+        frames = []
+        for test_env in test_envs:
+            for line_idx, method in enumerate(methods):
+                label = get_label(prefix)
+                frame = compute_line_data(
+                    cache_key,
+                    method,
+                    test_env,
+                    label=label,
+                    seeds=seeds,
+                    train_envs=train_envs,
+                    timesteps_per_env=timesteps,
+                    aggregation=aggregation,
+                    smooth=smooth,
+                    use_cache=use_cache,
+                )
+                if frame.empty:
+                    print(f"  No data for {method}/{test_env}")
+                    continue
+                frame.insert(0, "test_env", test_env)
+                frame.insert(0, "aggregation", aggregation)
+                frame.insert(0, "method", method)
+                frame.insert(0, "label", label)
+                frame.insert(0, "line_index", line_idx)
+                frames.append(frame)
+
+        if not frames:
+            raise RuntimeError("No data found for any requested plot line.")
+        data = pd.concat(frames, ignore_index=True)
+        if args.data_output:
+            data_path = Path(args.data_output)
+        else:
+            parts = [aggregation]
+            if prefix:
+                parts.append(prefix)
+            data_path = plot_output_dir / f"{'_'.join(parts)}_data.csv"
+        data_path.parent.mkdir(parents=True, exist_ok=True)
+        data.to_csv(data_path, index=False)
+        print(f"Saved plot data to {data_path}")
+        print("Done!")
+        return
 
     for test_env in test_envs:
         fig, ax = plt.subplots(figsize=(10, 5))
 
         for idx, method in enumerate(methods):
-            cached = None
-            if use_cache:
-                cached = load_from_cache(cache_key, method, test_env)
-
-            if cached is not None:
-                ts, iqm, ci_lo, ci_hi = cached
-                print(f"Loaded cached IQM for {method} on {test_env}")
-            else:
-                print(f"Computing IQM for {method} on {test_env}...")
-                ts, iqm, ci_lo, ci_hi = compute_iqm_curve(
-                    method, test_env,
-                    seeds=seeds,
-                    train_envs=train_envs,
-                    timesteps_per_env=timesteps,
-                    data_dir=DATA_DIR,
-                )
-                if len(ts) > 0:
-                    save_to_cache(cache_key, method, test_env, ts, iqm, ci_lo, ci_hi)
-
-            if len(ts) == 0:
+            label = get_label(prefix)
+            line_data = compute_line_data(
+                cache_key,
+                method,
+                test_env,
+                label=label,
+                seeds=seeds,
+                train_envs=train_envs,
+                timesteps_per_env=timesteps,
+                aggregation=aggregation,
+                smooth=smooth,
+                use_cache=use_cache,
+            )
+            if line_data.empty:
                 print(f"  No data for {method}/{test_env}")
                 continue
 
-            label = get_label(prefix)
             color = get_color(method, idx)
-            iqm = _smooth(iqm, smooth)
-            ci_lo = _smooth(ci_lo, smooth)
-            ci_hi = _smooth(ci_hi, smooth)
-            ax.plot(ts, iqm, label=label, color=color, linewidth=0.7)
-            ax.fill_between(ts, ci_lo, ci_hi, alpha=0.2, color=color)
+            ts = line_data["timestep"].to_numpy()
+            center = line_data["center"].to_numpy()
+            lower = line_data["lower"].to_numpy()
+            upper = line_data["upper"].to_numpy()
+            ax.plot(ts, center, label=label, color=color, linewidth=0.7)
+            ax.fill_between(ts, lower, upper, alpha=0.2, color=color)
 
         zoomed = t_start is not None or t_end is not None
         if zoomed:
@@ -749,10 +952,11 @@ def main():
             title=f"Evaluation on {env_name}-{test_env}",
             test_env=test_env,
             zoomed=zoomed,
+            y_label=Y_LABELS[aggregation],
         )
 
         plt.tight_layout()
-        parts = ["iqm"]
+        parts = [aggregation]
         if prefix:
             parts.append(prefix)
         parts.append(test_env)
