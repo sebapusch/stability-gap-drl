@@ -39,9 +39,14 @@ def process_yaml(yaml_path, dry):
     name_prefix_base = base_config.pop("name_prefix", "experiment")
 
     keys = list(ablations.keys())
-    values_lists = [
-        ablations[k] if isinstance(ablations[k], list) else [ablations[k]] for k in keys
-    ]
+    values_lists = []
+    for k in ablations:
+        if isinstance(ablations[k], int):
+            values_lists.append(list(range(ablations[k])))
+        elif isinstance(ablations[k], list):
+            values_lists.append(ablations[k])
+        else:
+            values_lists.append([ablations[k]])
 
     if not keys:
         combinations = [()]

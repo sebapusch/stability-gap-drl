@@ -1,0 +1,24 @@
+name_prefix: "sacd_cp_ji"
+project: "sacd_cp_ji_encode"
+algorithm: "sacd"
+env: "cartpole"
+method: "joint_incremental"
+batch_size: 128
+eval_freq: 250
+video_freq: 0
+n_eval_episodes: 15
+gamma: 0.99
+buffer_size: 500_000
+target_update: 1000
+learning_starts: 1000
+total_timesteps: 100_000
+network_size: 256
+store_weights: true
+encode_task: true
+lr: 0.001
+
+time: "20:00:00"
+
+ablations:
+  ent_coef: ["auto", "1.0"]
+  seed: 50

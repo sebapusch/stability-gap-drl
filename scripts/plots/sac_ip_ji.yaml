@@ -8,7 +8,8 @@ defaults:
   show_timesteps: true
   show_x_label: true
   show_y_label: true
-  format: svg
+  format: png
+  aggregation: mean
 
 plots:
   - title: 'SAC Joint Incremental (No Task ID, Adaptive Entropy)'
