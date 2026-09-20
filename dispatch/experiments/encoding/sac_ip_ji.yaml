@@ -1,5 +1,5 @@
 name_prefix: "sac_ip_ji"
-project: "sac_ip_ji_no_encode"
+project: "sac_ip_ji_encode"
 algorithm: "sac"
 env: "inverted_pendulum"
 method: "joint_incremental"
@@ -14,7 +14,7 @@ learning_starts: 1000
 total_timesteps: 100_000
 network_size: 256
 store_weights: true
-encode_task: false
+encode_task: true
 lr: 0.001
 
 time: "12:00:00"

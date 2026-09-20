@@ -15,7 +15,7 @@ total_timesteps: 100_000
 network_size: 256
 store_weights: true
 encode_task: false
-lr: 0.00005
+lr: 0.0005
 
 time: "12:00:00"
 
