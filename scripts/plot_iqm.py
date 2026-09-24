@@ -27,7 +27,6 @@ from matplotlib.ticker import FuncFormatter
 
 from common import (
     compute_aggregate_curve,
-    smooth_peak_aware as _smooth,
 )
 
 try:
@@ -125,6 +124,49 @@ def load_from_cache(cache_key: str, method: str, test_env: str, aggregation: str
     )
 
 
+def smooth_task_aware_ema(
+    values: np.ndarray,
+    timesteps: np.ndarray,
+    span: int | None,
+    *,
+    timesteps_per_env: int,
+    num_tasks: int,
+) -> np.ndarray:
+    """Apply EMA smoothing, restarting at every continual-learning task switch.
+
+    ``span`` follows the pandas EMA convention, with
+    ``alpha = 2 / (span + 1)``. A value of ``None`` or at most one disables
+    smoothing. Timesteps exactly on an internal task boundary belong to the
+    preceding task, so the EMA restarts at the first sample strictly after the
+    boundary. The final training endpoint remains in the last task.
+    """
+    values = np.asarray(values)
+    timesteps = np.asarray(timesteps)
+
+    if values.shape != timesteps.shape:
+        raise ValueError("values and timesteps must have the same shape")
+    if span is None or span <= 1 or len(values) == 0:
+        return values.copy()
+    if timesteps_per_env <= 0:
+        raise ValueError("timesteps_per_env must be positive")
+    if num_tasks <= 0:
+        raise ValueError("num_tasks must be positive")
+
+    alpha = 2.0 / (span + 1.0)
+    task_boundaries = np.arange(1, num_tasks) * timesteps_per_env
+    task_indices = np.searchsorted(task_boundaries, timesteps, side="left")
+    smoothed = values.astype(float, copy=True)
+
+    for idx in range(1, len(smoothed)):
+        if task_indices[idx] != task_indices[idx - 1]:
+            continue
+        if not np.isfinite(smoothed[idx - 1]) or not np.isfinite(values[idx]):
+            continue
+        smoothed[idx] = alpha * values[idx] + (1.0 - alpha) * smoothed[idx - 1]
+
+    return smoothed
+
+
 def compute_line_data(
     cache_key: str,
     method: str,
@@ -164,9 +206,27 @@ def compute_line_data(
 
     return pd.DataFrame({
         "timestep": ts,
-        "center": _smooth(center, smooth),
-        "lower": _smooth(lower, smooth),
-        "upper": _smooth(upper, smooth),
+        "center": smooth_task_aware_ema(
+            center,
+            ts,
+            smooth,
+            timesteps_per_env=timesteps_per_env,
+            num_tasks=len(train_envs),
+        ),
+        "lower": smooth_task_aware_ema(
+            lower,
+            ts,
+            smooth,
+            timesteps_per_env=timesteps_per_env,
+            num_tasks=len(train_envs),
+        ),
+        "upper": smooth_task_aware_ema(
+            upper,
+            ts,
+            smooth,
+            timesteps_per_env=timesteps_per_env,
+            num_tasks=len(train_envs),
+        ),
     })
 
 
@@ -241,6 +301,15 @@ def _line_envs(line_cfg: dict, fallback: list[str]) -> list[str]:
     if "num_tasks" in line_cfg:
         return [str(i) for i in range(line_cfg["num_tasks"])]
     return [str(env) for env in fallback]
+
+
+def _line_smooth(line_cfg: dict, plot_cfg: dict, defaults: dict) -> int | None:
+    """Resolve EMA span with line settings taking highest precedence."""
+    if "smooth" in line_cfg:
+        return line_cfg["smooth"]
+    if "smooth" in plot_cfg:
+        return plot_cfg["smooth"]
+    return defaults.get("smooth")
 
 
 def _nice_floor(value: float) -> float:
@@ -407,7 +476,7 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
         line_envs = _line_envs(line_cfg, plot_envs)
         line_timesteps = line_cfg.get("timesteps", plot_timesteps)
 
-        smooth = plot_cfg.get("smooth", defaults.get("smooth"))
+        smooth = _line_smooth(line_cfg, plot_cfg, defaults)
         line_data = compute_line_data(
             cache_key,
             method,
@@ -570,7 +639,7 @@ def compute_plot_data(config: dict, use_cache: bool = True) -> pd.DataFrame:
             test_env = line_cfg.get("test_env", plot_test_env)
             line_envs = _line_envs(line_cfg, plot_envs)
             line_timesteps = line_cfg.get("timesteps", plot_timesteps)
-            smooth = plot_cfg.get("smooth", defaults.get("smooth"))
+            smooth = _line_smooth(line_cfg, plot_cfg, defaults)
             frame = compute_line_data(
                 cache_key,
                 method,
@@ -611,6 +680,10 @@ def plot_grid(config: dict, use_cache: bool):
     plots = config["plots"]
 
     seeds = defaults.get("seeds", SEEDS)
+
+    if isinstance(seeds, int):
+        seeds = list(range(seeds))
+
     timesteps = defaults.get("timesteps", TIMESTEPS_PER_ENV)
     envs = defaults.get("envs", TRAIN_ENVS)
     env_name = defaults.get("env_name", "")
@@ -690,7 +763,7 @@ def plot_grid(config: dict, use_cache: bool):
             line_envs = _line_envs(line_cfg, plot_envs)
             line_timesteps = line_cfg.get("timesteps", plot_timesteps)
 
-            smooth = plot_cfg.get("smooth", defaults.get("smooth"))
+            smooth = _line_smooth(line_cfg, plot_cfg, defaults)
             line_data = compute_line_data(
                 cache_key,
                 method,
@@ -810,7 +883,8 @@ def parse_args():
     )
     parser.add_argument(
         "--smooth", type=int, default=None,
-        help="Window size for peak-aware moving-average smoothing.",
+        help=("EMA span for curve smoothing. The EMA restarts at each task "
+              "boundary; values <= 1 disable smoothing."),
     )
     return parser.parse_args()
 
@@ -860,6 +934,9 @@ def main():
     t_end = args.t_end
     smooth = args.smooth
     aggregation = args.aggregation or "iqm"
+
+    if isinstance(seeds, int):
+        seeds = list(range(seeds))
 
     if output_subdir:
         plot_output_dir = OUTPUT_DIR / output_subdir

@@ -1,0 +1,93 @@
+defaults:
+  env_name: InvertedPendulum
+  seeds: 50
+  timesteps: 100_000
+  output_dir: sac_ip_ji_no_encode
+  output_file: sac_ip_ji
+  dpi: 500 # optional: default is 300
+  show_timesteps: true
+  show_x_label: true
+  show_y_label: true
+  format: png
+  # aggregation: mean
+
+plots:
+  - title: 'SAC Joint Incremental (No Task ID, Adaptive Entropy)'
+    aggregation: mean
+    lines:
+      - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_auto-s_<s>'
+        num_tasks: 3
+        test_env: 0
+        linewidth: 0.5
+        label: 'P(1)'
+        color: "#3A9AB2"
+        smooth: 1
+
+      - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_auto-s_<s>'
+        num_tasks: 3
+        test_env: 0
+        label: 'P(1)'
+        linewidth: 1.5
+        color: "#EBCC2A"
+        smooth: 15
+
+  - title: 'SAC Joint Incremental (No Task ID, Adaptive Entropy)'
+    aggregation: iqm
+    lines:
+      - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_auto-s_<s>'
+        num_tasks: 3
+        test_env: 0
+        linewidth: 0.5
+        label: 'P(1)'
+        color: "#3A9AB2"
+        smooth: 1
+
+      - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_auto-s_<s>'
+        num_tasks: 3
+        test_env: 0
+        label: 'P(1)'
+        linewidth: 1.5
+        color: "#EBCC2A"
+        smooth: 15
+
+
+  - title: 'SAC Joint Incremental (No Task ID, Max Entropy)'
+    aggregation: mean
+    lines:
+      - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_1-s_<s>'
+        num_tasks: 3
+        test_env: 0
+        linewidth: 0.5
+        label: 'P(1)'
+        color: "#3A9AB2"
+        smooth: 1
+
+      - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_1-s_<s>'
+        num_tasks: 3
+        test_env: 0
+        linewidth: 1.5
+        label: 'P(2)'
+        color: "#EBCC2A"
+        smooth: 15
+
+
+  - title: 'SAC Joint Incremental (No Task ID, Max Entropy)'
+    aggregation: iqm
+    lines:
+      - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_1-s_<s>'
+        num_tasks: 3
+        test_env: 0
+        linewidth: 0.5
+        label: 'P(1)'
+        color: "#3A9AB2"
+        smooth: 1
+
+      - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_1-s_<s>'
+        num_tasks: 3
+        test_env: 0
+        linewidth: 1.5
+        label: 'P(2)'
+        color: "#EBCC2A"
+        smooth: 15
+
+

@@ -4,8 +4,6 @@ import warnings
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from scipy.ndimage import uniform_filter1d
-from scipy.signal import find_peaks
 
 try:
     import yaml
@@ -252,59 +250,6 @@ def bootstrap_iqm(seed_values: np.ndarray, n_bootstrap: int = 10_000, confidence
         iqm = np.mean(sorted_sv[:, q1_idx:q3_idx], axis=1)
 
     return iqm, ci_low, ci_high
-
-
-# ---------------------------------------------------------------------------
-# Smoothing
-# ---------------------------------------------------------------------------
-
-def smooth_peak_aware(arr: np.ndarray, window: int | None) -> np.ndarray:
-    """Apply uniform moving-average smoothing while preserving important extrema."""
-    if window is None or window <= 1:
-        return arr
-
-    arr_float = arr.astype(float)
-    smoothed = uniform_filter1d(arr_float, size=window)
-
-    if len(arr_float) < 3:
-        return smoothed
-
-    preserved = smoothed.copy()
-    n_keep = max(1, min(5, len(arr_float) // max(window, 1)))
-    radius = max(1, window // 4)
-
-    def _restore_neighbourhood(indices: np.ndarray):
-        for idx in indices:
-            start = max(0, idx - radius)
-            end = min(len(arr_float), idx + radius + 1)
-            preserved[start:end] = arr_float[start:end]
-
-    max_idx = int(np.nanargmax(arr_float))
-    max_value = arr_float[max_idx]
-    _restore_neighbourhood(np.array([max_idx]))
-
-    post_max = arr_float[max_idx:]
-    if len(post_max) >= 3 and np.isfinite(max_value):
-        troughs_post, _ = find_peaks(-post_max)
-        troughs = troughs_post + max_idx
-        post_max_min_idx = max_idx + int(np.nanargmin(post_max))
-        troughs = np.unique(np.concatenate([troughs, [post_max_min_idx]]))
-        denom = abs(max_value) if max_value != 0 else 1.0
-        drops = (max_value - arr_float[troughs]) / denom
-        large_drop_troughs = troughs[drops >= 0.1]
-        if len(large_drop_troughs) > 0:
-            drop_order = np.argsort((max_value - arr_float[large_drop_troughs]) / denom)[::-1]
-            selected_troughs = large_drop_troughs[drop_order[:n_keep]]
-            _restore_neighbourhood(selected_troughs)
-
-    peaks, _ = find_peaks(arr_float)
-    if len(peaks) > 0:
-        peak_order = np.argsort(arr_float[peaks])[::-1]
-        selected_peaks = peaks[peak_order[:max(1, n_keep // 2)]]
-        selected_peaks = np.unique(np.concatenate([selected_peaks, [max_idx]]))
-        _restore_neighbourhood(selected_peaks)
-
-    return preserved
 
 
 # ---------------------------------------------------------------------------
