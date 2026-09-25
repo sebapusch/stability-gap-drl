@@ -1,7 +1,7 @@
 import argparse
 import zipfile
 from functools import reduce
-from os import path
+from os import makedirs, path
 
 import jax
 import jax.numpy as jnp
@@ -9,11 +9,19 @@ import numpy as np
 import torch
 import tqdm
 
+from transformation.benchmarks.transformed_env_benchmark import (
+    NUM_TASKS,
+    random_orthogonal,
+)
+
 type MLP = list[tuple[jax.Array, jax.Array]]
 
 N_STEPS = 200
 N_ENV_STEPS = 1000
 N_EVAL = 15
+OBSERVATION_DIM = 4
+EVAL_TASK_INDEX = 0
+TASK_INDICES = tuple(range(NUM_TASKS))
 MODEL_PATH = path.abspath(path.join(__file__, "..", "..", "output", "__", "models"))
 if not path.exists(MODEL_PATH):
     MODEL_PATH = path.abspath(path.join(__file__, "..", "..", "output", "models"))
@@ -97,7 +105,7 @@ def rk4_step_2steps(state: jax.Array, action: jax.Array) -> jax.Array:
 
 def evaluate(
     policy: MLP,
-    onehot: jax.Array,
+    task_encoding: jax.Array,
     proj_mat: jax.Array,
     proj_bias: jax.Array,
     angle_limit: float,
@@ -106,11 +114,11 @@ def evaluate(
     # Reset model uniformly matching Gymnasium
     vmap_reset = jax.vmap(lambda k: jax.random.uniform(k, minval=-0.01, maxval=0.01, shape=(4,)))
 
-    batch_onehot = jnp.tile(onehot, (N_EVAL, 1))
+    batch_task_encoding = jnp.tile(task_encoding, (N_EVAL, 1))
 
     def process_obs(obs_batch: jax.Array) -> jax.Array:
         proj_obs = obs_batch @ proj_mat.T + proj_bias
-        return jnp.concatenate([proj_obs, batch_onehot], axis=-1)
+        return jnp.concatenate([proj_obs, batch_task_encoding], axis=-1)
 
     rng, reset_rng = jax.random.split(key)
     reset_keys = jax.random.split(reset_rng, N_EVAL)
@@ -168,132 +176,117 @@ def combine(a: MLP, b: MLP, c: MLP, d: MLP, alpha: jax.Array, beta: jax.Array) -
 def evaluate_combination(
     policies: tuple[MLP, MLP, MLP, MLP],
     vals: jax.Array,
-    onehot: jax.Array,
+    task_encoding: jax.Array,
     proj_mat: jax.Array,
-    proj_bias: jax.Array,
     angle_limit: float,
+    key: jax.Array,
 ) -> jax.Array:
     comb = combine(*policies, alpha=vals[0], beta=vals[1])
 
-    key = jax.random.key(0)
-
     rh = evaluate(
         comb,
-        onehot,
+        task_encoding,
         proj_mat=proj_mat,
-        proj_bias=proj_bias,
+        proj_bias=jnp.zeros(OBSERVATION_DIM, dtype=jnp.float32),
         angle_limit=angle_limit,
-        key=key
+        key=key,
     )
 
     return rh.sum(axis=0)
 
 
-MAT_V2 = jnp.array([
-    [ 0.14022304,  0.4014328 , -0.9011977  ,-0.08385649],
-    [ 0.6846759 , -0.34279321, -0.10520617 , 0.63454187],
-    [-0.70954596, -0.14529827, -0.2354287  , 0.64807891],
-    [ 0.09000526,  0.83679922,  0.34834996 , 0.41269653],
-])
+def load_policies(model_path: str) -> tuple[MLP, MLP, MLP, MLP]:
+    models: dict[int, MLP] = {}
 
-
-def get_projection(version_str: str, num_tasks: int, benchmark: list[str]) -> tuple[jax.Array, jax.Array, jax.Array]:
-    version = int(version_str.strip("V"))
-    task_idx = benchmark.index(version_str)
-    
-    # One-hot representation of this task
-    onehot = np.zeros(num_tasks, dtype=np.float32)
-    onehot[task_idx] = 1.0
-
-    if version == 1:
-        return jnp.eye(4, dtype=jnp.float32), jnp.zeros(4, dtype=jnp.float32), jnp.array(onehot)
-    elif version == 2:
-        return MAT_V2, jnp.zeros(4, dtype=jnp.float32), jnp.array(onehot)
-
-    seed = range(90, 200)[version - 1]
-    has_bias = version > 5
-
-    rng = np.random.default_rng(seed)
-    m = rng.normal(size=(4, 4))
-    q, _ = np.linalg.qr(m)
-    if np.linalg.det(q) < 0:
-        q[:, 0] *= -1
-    q = q.astype(np.float32)
-
-    if has_bias:
-        b = rng.random(size=4).astype(np.float32)
-    else:
-        b = np.zeros(4, dtype=np.float32)
-
-    return jnp.array(q), jnp.array(b), jnp.array(onehot)
-
-
-
-def load_policies(model_path: str, benchmark: list[str]) -> tuple[MLP, MLP, MLP, MLP]:
-    models = {}
-
-    for v in benchmark:
-        with zipfile.ZipFile(f"{model_path}-{v}.zip") as archive:
+    for task_index in TASK_INDICES:
+        with zipfile.ZipFile(f"{model_path}-{task_index}.zip") as archive:
             with archive.open("policy.pth", mode="r") as param_file:
                 th_object = torch.load(param_file, weights_only=True)
 
                 # Continuous policies (SAC/DDPG) use latent_pi.0, latent_pi.2, and mu layers
-                models[v] = [
+                models[task_index] = [
                     (jnp.array(th_object["actor.latent_pi.0.weight"].cpu().numpy()), jnp.array(th_object["actor.latent_pi.0.bias"].cpu().numpy())),
                     (jnp.array(th_object["actor.latent_pi.2.weight"].cpu().numpy()), jnp.array(th_object["actor.latent_pi.2.bias"].cpu().numpy())),
                     (jnp.array(th_object["actor.mu.weight"].cpu().numpy()), jnp.array(th_object["actor.mu.bias"].cpu().numpy())),
                 ]
 
-    t1, t2, t3 = benchmark[0], benchmark[1], benchmark[2]
-    d = [(lc[0] + lb[0] - la[0], lc[1] + lb[1] - la[1]) for la, lb, lc in zip(models[t1], models[t2], models[t3])]
+    first, second, third = (models[task_index] for task_index in TASK_INDICES)
+    fourth = [
+        (third_layer[0] + second_layer[0] - first_layer[0],
+         third_layer[1] + second_layer[1] - first_layer[1])
+        for first_layer, second_layer, third_layer in zip(first, second, third)
+    ]
 
-    return models[t1], models[t2], models[t3], d
+    return first, second, third, fourth
+
+
+def make_task_encoding(policy: MLP) -> jax.Array:
+    input_dim = policy[0][0].shape[1]
+    if input_dim == OBSERVATION_DIM:
+        return jnp.empty(0, dtype=jnp.float32)
+    if input_dim == OBSERVATION_DIM + NUM_TASKS:
+        return jax.nn.one_hot(EVAL_TASK_INDEX, NUM_TASKS, dtype=jnp.float32)
+
+    raise ValueError(
+        f"Expected policy input width {OBSERVATION_DIM} or "
+        f"{OBSERVATION_DIM + NUM_TASKS}, got {input_dim}"
+    )
+
+
+def task_projection(seed: int) -> jax.Array:
+    transformation_seed = NUM_TASKS * seed + EVAL_TASK_INDEX
+    return jnp.asarray(
+        random_orthogonal(transformation_seed, OBSERVATION_DIM),
+        dtype=jnp.float32,
+    )
 
 
 def main(
     seeds: list[int],
     model_path: str,
     output_dir: str,
-    benchmark: list[str] = ["V2", "V8", "V9"],
-    eval_task: str | None = None,
     hard: bool = False,
     chunk_size: int = 2000,
 ) -> None:
-    if eval_task is None:
-        eval_task = benchmark[0]
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
 
+    makedirs(output_dir, exist_ok=True)
     angle_limit = 0.1 if hard else 0.2
-    print(f"Evaluating task {eval_task} with angle limit {angle_limit} radians")
-
-    proj_mat, proj_bias, onehot = get_projection(eval_task, len(benchmark), benchmark)
+    print(f"Evaluating task 1 with angle limit {angle_limit} radians")
+    combinations = generate_combinations()
+    eval_vmap = jax.vmap(
+        evaluate_combination,
+        in_axes=(None, 0, None, None, None, None),
+    )
 
     for s in tqdm.tqdm(seeds):
         try:
             policies = load_policies(
-                path.join(MODEL_PATH, model_path.replace('<s>', str(s))),
-                benchmark
+                path.join(MODEL_PATH, model_path.replace('<s>', str(s)))
             )
         except (FileNotFoundError, zipfile.BadZipFile, KeyError) as e:
             print(f"Warning: Skipping seed {s} due to missing or corrupt model file: {e}")
             continue
 
-        combinations = generate_combinations()
-
-        
-        # Partially apply env details to evaluate_combination
-        eval_fn = lambda pols, comb: evaluate_combination(
-            pols, comb, onehot, proj_mat, proj_bias, angle_limit
-        )
-        
-        eval_vmap = jax.vmap(eval_fn, in_axes=(None, 0))
+        task_encoding = make_task_encoding(policies[0])
+        proj_mat = task_projection(s)
+        eval_key = jax.random.key(s + 1)
 
         results = []
         for i in range(0, len(combinations), chunk_size):
             chunk = combinations[i : i + chunk_size]
-            res_chunk = eval_vmap(policies, chunk)
+            res_chunk = eval_vmap(
+                policies,
+                chunk,
+                task_encoding,
+                proj_mat,
+                angle_limit,
+                eval_key,
+            )
             res_chunk = res_chunk.mean(axis=-1)
             results.append(res_chunk)
-            
+
         res = jnp.concatenate(results, axis=0)
 
         data = jnp.column_stack((combinations, res))
@@ -303,13 +296,26 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str)
-    parser.add_argument('--output_dir', type=str)
-    parser.add_argument('--seeds', nargs='+', type=int)
-    parser.add_argument('--benchmark', nargs='+', type=str, default=["V2", "V8", "V9"])
-    parser.add_argument('--eval_task', type=str, default=None)
+    parser.add_argument('--model_path', type=str, required=True)
+    parser.add_argument('--output_dir', type=str, required=True)
+    seed_args = parser.add_mutually_exclusive_group(required=True)
+    seed_args.add_argument('--seeds', nargs='+', type=int)
+    seed_args.add_argument(
+        '--seed_range',
+        nargs=2,
+        type=int,
+        metavar=('START', 'STOP'),
+        help='Evaluate seeds in the half-open range [START, STOP)',
+    )
     parser.add_argument('--hard', action='store_true')
     parser.add_argument('--chunk_size', type=int, default=2000)
 
-    main(**parser.parse_args().__dict__)
+    args = parser.parse_args()
+    if args.seed_range is not None:
+        start, stop = args.seed_range
+        if start >= stop:
+            parser.error('--seed_range requires START < STOP')
+        args.seeds = list(range(start, stop))
+    del args.seed_range
 
+    main(**vars(args))
