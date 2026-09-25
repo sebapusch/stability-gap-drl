@@ -46,7 +46,7 @@ case "$environment" in
 esac
 
 export JAX_PLATFORMS=cpu
-cd /scratch/$USER/crl-stability-gap
+cd /scratch/$USER/stability-gap-drl
 source .venv/bin/activate
 module load CUDA/12.6.0
 export PYTHONPATH="${PYTHONPATH:-}:$(pwd)"
