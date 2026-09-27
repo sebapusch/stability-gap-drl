@@ -229,19 +229,27 @@ def bootstrap_iqm(seed_values: np.ndarray, n_bootstrap: int = 10_000, confidence
     n_ts, n_seeds = seed_values.shape
     rng = np.random.default_rng(42)
     indices = rng.integers(0, n_seeds, size=(n_bootstrap, n_seeds))
-    boot_samples = seed_values[:, indices]  # (n_ts, n_bootstrap, n_seeds)
-
-    sorted_bs = np.sort(boot_samples, axis=2)
     q1_idx = int(np.floor(n_seeds * 0.25))
     q3_idx = int(np.ceil(n_seeds * 0.75))
-    if q3_idx <= q1_idx:
-        boot_iqms = np.mean(sorted_bs, axis=2)  # (n_ts, n_bootstrap)
-    else:
-        boot_iqms = np.mean(sorted_bs[:, :, q1_idx:q3_idx], axis=2)
-
     alpha = (1 - confidence) / 2
-    ci_low = np.percentile(boot_iqms, 100 * alpha, axis=1)
-    ci_high = np.percentile(boot_iqms, 100 * (1 - alpha), axis=1)
+    ci_low = np.empty(n_ts)
+    ci_high = np.empty(n_ts)
+
+    # Indexing all timesteps at once creates two enormous 3-D arrays (samples
+    # and sorted samples). With 2,400 timesteps, 10,000 resamples and 50 seeds,
+    # each float64 array alone takes almost 9 GiB. Reuse the same resampling
+    # indices for every row, but keep each batch of samples below 64 MiB.
+    bytes_per_row = n_bootstrap * n_seeds * seed_values.dtype.itemsize
+    batch_size = max(1, (64 * 1024 * 1024) // bytes_per_row)
+    for start in range(0, n_ts, batch_size):
+        stop = min(start + batch_size, n_ts)
+        boot_samples = seed_values[start:stop, indices]
+        boot_samples.sort(axis=2)
+        middle = (boot_samples if q3_idx <= q1_idx
+                  else boot_samples[:, :, q1_idx:q3_idx])
+        boot_iqms = np.mean(middle, axis=2)
+        ci_low[start:stop] = np.percentile(boot_iqms, 100 * alpha, axis=1)
+        ci_high[start:stop] = np.percentile(boot_iqms, 100 * (1 - alpha), axis=1)
 
     sorted_sv = np.sort(seed_values, axis=1)
     if q3_idx <= q1_idx:

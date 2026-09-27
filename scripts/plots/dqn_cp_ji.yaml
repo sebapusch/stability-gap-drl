@@ -1,7 +1,7 @@
 defaults:
   env_name: InvertedPendulum
   seeds: 50
-  timesteps: 100_000
+  timesteps: 200_000
   output_dir: dqn_cp_ji
   output_file: dqn_cp_ji
   dpi: 500 # optional: default is 300
