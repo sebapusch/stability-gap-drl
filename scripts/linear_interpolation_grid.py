@@ -146,10 +146,19 @@ def load_policies(model_path: str) -> tuple[MLP, MLP, MLP, MLP]:
             with archive.open("policy.pth", mode="r") as param_file:
                 th_object = torch.load(param_file, weights_only=True)
 
+                if "actor.latent_pi.0.weight" in th_object:
+                    layer_prefix = "actor.latent_pi"
+                elif "q_net.q_net.0.weight" in th_object:
+                    layer_prefix = "q_net.q_net"
+                else:
+                    raise KeyError("No actor or DQN policy network found in policy.pth")
+
                 models[task_index] = [
-                    (jnp.array(th_object["actor.latent_pi.0.weight"].cpu().numpy()), jnp.array(th_object["actor.latent_pi.0.bias"].cpu().numpy())),
-                    (jnp.array(th_object["actor.latent_pi.2.weight"].cpu().numpy()), jnp.array(th_object["actor.latent_pi.2.bias"].cpu().numpy())),
-                    (jnp.array(th_object["actor.latent_pi.4.weight"].cpu().numpy()), jnp.array(th_object["actor.latent_pi.4.bias"].cpu().numpy())),
+                    (
+                        jnp.asarray(th_object[f"{layer_prefix}.{layer}.weight"].cpu().numpy()),
+                        jnp.asarray(th_object[f"{layer_prefix}.{layer}.bias"].cpu().numpy()),
+                    )
+                    for layer in (0, 2, 4)
                 ]
 
     first, second, third = (models[task_index] for task_index in TASK_INDICES)
