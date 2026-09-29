@@ -203,11 +203,21 @@ def load_policies(model_path: str) -> tuple[MLP, MLP, MLP, MLP]:
             with archive.open("policy.pth", mode="r") as param_file:
                 th_object = torch.load(param_file, weights_only=True)
 
-                # Continuous policies (SAC/DDPG) use latent_pi.0, latent_pi.2, and mu layers
+                if "actor.latent_pi.0.weight" in th_object:
+                    # SAC stores its hidden layers separately from the action mean.
+                    layer_names = ("actor.latent_pi.0", "actor.latent_pi.2", "actor.mu")
+                elif "actor.mu.0.weight" in th_object:
+                    # DDPG uses the TD3 actor, whose complete MLP is actor.mu.
+                    layer_names = ("actor.mu.0", "actor.mu.2", "actor.mu.4")
+                else:
+                    raise KeyError("No SAC or DDPG actor network found in policy.pth")
+
                 models[task_index] = [
-                    (jnp.array(th_object["actor.latent_pi.0.weight"].cpu().numpy()), jnp.array(th_object["actor.latent_pi.0.bias"].cpu().numpy())),
-                    (jnp.array(th_object["actor.latent_pi.2.weight"].cpu().numpy()), jnp.array(th_object["actor.latent_pi.2.bias"].cpu().numpy())),
-                    (jnp.array(th_object["actor.mu.weight"].cpu().numpy()), jnp.array(th_object["actor.mu.bias"].cpu().numpy())),
+                    (
+                        jnp.asarray(th_object[f"{name}.weight"].cpu().numpy()),
+                        jnp.asarray(th_object[f"{name}.bias"].cpu().numpy()),
+                    )
+                    for name in layer_names
                 ]
 
     first, second, third = (models[task_index] for task_index in TASK_INDICES)

@@ -33,12 +33,18 @@ def parse_config(config_path: str) -> dict:
 
     all_ablation_keys = list(ablations.keys())
 
-    seeds = ablations.get("seed", [0])
-    if not isinstance(seeds, list):
-        seeds = [seeds]
+    def ablation_values(value):
+        # Match dispatch_yaml.py: a scalar integer denotes a count, not an ID.
+        if isinstance(value, int):
+            return list(range(value))
+        if isinstance(value, list):
+            return value
+        return [value]
+
+    seeds = ablation_values(ablations.get("seed", [0]))
 
     hp_keys = [k for k in all_ablation_keys if k != "seed"]
-    hp_values = [ablations[k] if isinstance(ablations[k], list) else [ablations[k]] for k in hp_keys]
+    hp_values = [ablation_values(ablations[k]) for k in hp_keys]
 
     project = cfg.get("project", name_prefix)
 
@@ -95,11 +101,12 @@ def build_suffix(hp_combo: dict, seed: int, all_ablation_keys: list[str]) -> str
 
 def get_env_max_return(env_name: str) -> float:
     """Return the theoretical maximum return for the environment."""
-    if env_name and "inverted_pendulum" in env_name:
+    normalized_name = (env_name or "").lower().replace("-", "_")
+    if "inverted_pendulum" in normalized_name or "invertedpendulum" in normalized_name:
         return 1000.0
-    elif env_name and "cartpole" in env_name:
+    if "cartpole" in normalized_name:
         return 500.0
-    return 1.0
+    raise ValueError(f"Unknown maximum episodic return for environment {env_name!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +267,27 @@ def bootstrap_iqm(seed_values: np.ndarray, n_bootstrap: int = 10_000, confidence
     return iqm, ci_low, ci_high
 
 
+def bootstrap_mean(seed_values: np.ndarray, n_bootstrap: int = 10_000, confidence: float = 0.95):
+    """Compute the mean and a percentile bootstrap CI over seeds for each timestep."""
+    n_ts, n_seeds = seed_values.shape
+    rng = np.random.default_rng(42)
+    indices = rng.integers(0, n_seeds, size=(n_bootstrap, n_seeds))
+    alpha = (1 - confidence) / 2
+    ci_low = np.empty(n_ts)
+    ci_high = np.empty(n_ts)
+
+    # Bound the temporary (timesteps × resamples × seeds) array as for IQM.
+    bytes_per_row = n_bootstrap * n_seeds * seed_values.dtype.itemsize
+    batch_size = max(1, (64 * 1024 * 1024) // bytes_per_row)
+    for start in range(0, n_ts, batch_size):
+        stop = min(start + batch_size, n_ts)
+        boot_means = np.mean(seed_values[start:stop, indices], axis=2)
+        ci_low[start:stop] = np.percentile(boot_means, 100 * alpha, axis=1)
+        ci_high[start:stop] = np.percentile(boot_means, 100 * (1 - alpha), axis=1)
+
+    return np.mean(seed_values, axis=1), ci_low, ci_high
+
+
 # ---------------------------------------------------------------------------
 # Metric Core Computations
 # ---------------------------------------------------------------------------
@@ -361,14 +389,24 @@ def compute_final_performance_from_data(
     n_bootstrap: int,
     timesteps_per_env: int,
 ) -> dict:
-    """Compute Final Average Performance metrics from pre-loaded combo data."""
+    """Compute P at the final evaluation from environment-normalized returns.
+
+    Aggregate seeds at each evaluation step before averaging over tasks. With
+    ``n_smooth=1`` this is P(t_N) as defined in the thesis; larger values
+    optionally average the last few evaluation steps for each task.
+    """
+    if not np.isfinite(env_max) or env_max <= 0:
+        raise ValueError("env_max must be positive and finite")
     aligned_curves = {}
     common_seeds = None
 
     for eval_env in benchmark:
-        ts, curves, seeds = get_aligned_curves(combo_data, eval_env)
+        ts, curves, seeds = get_aligned_curves(
+            combo_data, eval_env, timestep_end=len(benchmark) * timesteps_per_env
+        )
         if len(seeds) == 0:
-            continue
+            common_seeds = set()
+            break
         aligned_curves[eval_env] = (ts, curves, seeds)
         if common_seeds is None:
             common_seeds = set(seeds)
@@ -381,40 +419,44 @@ def compute_final_performance_from_data(
             res[f"{env}_mean"] = np.nan
             res[f"{env}_ci_low"] = np.nan
             res[f"{env}_ci_high"] = np.nan
-        res["P(T)_mean"] = np.nan
-        res["P(T)_ci_low"] = np.nan
-        res["P(T)_ci_high"] = np.nan
+        res["P_mean"] = np.nan
+        res["P_ci_low"] = np.nan
+        res["P_ci_high"] = np.nan
         return res
 
     valid_seeds = sorted(list(common_seeds))
     n_valid = len(valid_seeds)
 
+    common_timesteps = None
+    for ts, _, _ in aligned_curves.values():
+        common_timesteps = ts if common_timesteps is None else np.intersect1d(common_timesteps, ts)
+    if common_timesteps is None or len(common_timesteps) == 0:
+        res = {"n_seeds": 0}
+        for env in benchmark:
+            res[f"{env}_mean"] = np.nan
+            res[f"{env}_ci_low"] = np.nan
+            res[f"{env}_ci_high"] = np.nan
+        res["P_mean"] = np.nan
+        res["P_ci_low"] = np.nan
+        res["P_ci_high"] = np.nan
+        return res
+    final_timesteps = common_timesteps[-n_smooth:]
+
     stacked_mapped = {}
     for eval_env in benchmark:
-        if eval_env not in aligned_curves:
-            continue
         ts, curves, seeds = aligned_curves[eval_env]
         seed_indices = [seeds.index(s) for s in valid_seeds]
-        stacked_mapped[eval_env] = (curves[seed_indices, :].T / env_max) * 100.0
+        timestep_indices = np.searchsorted(ts, final_timesteps)
+        stacked_mapped[eval_env] = (
+            curves[np.ix_(seed_indices, timestep_indices)].T / env_max
+        ) * 100.0
 
     def calc_perf_single_bootstrap(boot_col_indices: np.ndarray) -> np.ndarray:
         env_scores = np.empty(len(benchmark))
         for idx, env in enumerate(benchmark):
-            if env not in stacked_mapped:
-                env_scores[idx] = np.nan
-                continue
             sub_curves = stacked_mapped[env][:, boot_col_indices]
-            n_pts = min(n_smooth, sub_curves.shape[0])
-            if n_pts == 0:
-                env_scores[idx] = np.nan
-            else:
-                sub_curves_last = sub_curves[-n_pts:, :]
-                agg_curve_last = aggregate_curves_vectorized(sub_curves_last, use_iqm)
-                valid_last = agg_curve_last[~np.isnan(agg_curve_last)]
-                if len(valid_last) == 0:
-                    env_scores[idx] = np.nan
-                else:
-                    env_scores[idx] = np.mean(valid_last)
+            agg_curve = aggregate_curves_vectorized(sub_curves, use_iqm)
+            env_scores[idx] = np.mean(agg_curve)
         return env_scores
 
     obs_env_scores = calc_perf_single_bootstrap(np.arange(n_valid))
@@ -428,8 +470,8 @@ def compute_final_performance_from_data(
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
-        obs_pt = float(np.nanmean(obs_env_scores))
-        boot_pt = np.nanmean(boot_env_scores, axis=1)
+        obs_pt = float(np.mean(obs_env_scores))
+        boot_pt = np.mean(boot_env_scores, axis=1)
 
     alpha = (1 - confidence) / 2
 
@@ -446,13 +488,13 @@ def compute_final_performance_from_data(
 
     valid_boot_pt = boot_pt[~np.isnan(boot_pt)]
     if len(valid_boot_pt) == 0:
-        res["P(T)_mean"] = obs_pt
-        res["P(T)_ci_low"] = np.nan
-        res["P(T)_ci_high"] = np.nan
+        res["P_mean"] = obs_pt
+        res["P_ci_low"] = np.nan
+        res["P_ci_high"] = np.nan
     else:
-        res["P(T)_mean"] = obs_pt
-        res["P(T)_ci_low"] = float(np.percentile(valid_boot_pt, 100 * alpha))
-        res["P(T)_ci_high"] = float(np.percentile(valid_boot_pt, 100 * (1 - alpha)))
+        res["P_mean"] = obs_pt
+        res["P_ci_low"] = float(np.percentile(valid_boot_pt, 100 * alpha))
+        res["P_ci_high"] = float(np.percentile(valid_boot_pt, 100 * (1 - alpha)))
     return res
 
 
@@ -461,11 +503,18 @@ def compute_min_acc_from_data(
     benchmark: list[str],
     k_idx: int,
     use_iqm: bool,
+    env_max: float,
     confidence: float,
     n_bootstrap: int,
     timesteps_per_env: int,
 ) -> dict:
-    """Compute min-ACC stability metrics from pre-loaded combo data."""
+    """Compute min-P from environment-normalized, seed-aggregated curves.
+
+    For each previous task i, take the minimum strictly after its training
+    boundary through the end of task k, then average those minima.
+    """
+    if not np.isfinite(env_max) or env_max <= 0:
+        raise ValueError("env_max must be positive and finite")
     aligned_curves = {}
     common_seeds = None
 
@@ -474,11 +523,17 @@ def compute_min_acc_from_data(
         ts, curves, seeds = get_aligned_curves(
             combo_data,
             eval_env,
-            timestep_start=i * timesteps_per_env,
+            timestep_start=(i + 1) * timesteps_per_env,
             timestep_end=(k_idx + 1) * timesteps_per_env,
         )
         if len(seeds) == 0:
-            continue
+            common_seeds = set()
+            break
+        after_boundary = ts > (i + 1) * timesteps_per_env
+        if not after_boundary.any():
+            common_seeds = set()
+            break
+        ts, curves = ts[after_boundary], curves[:, after_boundary]
         aligned_curves[eval_env] = (ts, curves, seeds)
         if common_seeds is None:
             common_seeds = set(seeds)
@@ -488,9 +543,9 @@ def compute_min_acc_from_data(
     if not common_seeds:
         return {
             "n_seeds": 0,
-            "min-ACC_mean": np.nan,
-            "min-ACC_ci_low": np.nan,
-            "min-ACC_ci_high": np.nan,
+            "min-P_mean": np.nan,
+            "min-P_ci_low": np.nan,
+            "min-P_ci_high": np.nan,
         }
 
     valid_seeds = sorted(list(common_seeds))
@@ -499,47 +554,21 @@ def compute_min_acc_from_data(
     stacked_curves_mapped = {}
     for i in range(k_idx):
         eval_env = benchmark[i]
-        if eval_env not in aligned_curves:
-            continue
-        ts, curves, seeds = aligned_curves[eval_env]
+        _, curves, seeds = aligned_curves[eval_env]
         seed_indices = [seeds.index(s) for s in valid_seeds]
-        stacked_curves_mapped[eval_env] = curves[seed_indices, :].T
+        stacked_curves_mapped[eval_env] = (curves[seed_indices, :].T / env_max) * 100.0
 
     def calc_metric_single_bootstrap(boot_col_indices: np.ndarray) -> float:
-        task_accs = np.empty(k_idx)
+        task_mins = np.empty(k_idx)
         for i in range(k_idx):
             eval_env = benchmark[i]
-            if eval_env not in stacked_curves_mapped:
-                task_accs[i] = np.nan
-                continue
-            ts, _, _ = aligned_curves[eval_env]
             sub_curves = stacked_curves_mapped[eval_env][:, boot_col_indices]
             agg_curve = aggregate_curves_vectorized(sub_curves, use_iqm)
-
-            if np.all(np.isnan(agg_curve)):
-                task_accs[i] = 0.0
-                continue
-
-            max_score = np.nanmax(agg_curve)
-
-            stability_mask = ts >= (i + 1) * timesteps_per_env
-            valid_stability = agg_curve[stability_mask]
-            valid_stability = valid_stability[~np.isnan(valid_stability)]
-            if len(valid_stability) == 0:
-                valid_all = agg_curve[~np.isnan(agg_curve)]
-                if len(valid_all) == 0:
-                    min_score = 0.0
-                else:
-                    min_score = np.min(valid_all)
-            else:
-                min_score = np.min(valid_stability)
-
-            max_score_safe = max_score if max_score > 0 else 1.0
-            norm = (min_score / max_score_safe) * 100.0
-            task_accs[i] = norm if max_score > 0 else 0.0
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            return np.nanmean(task_accs)
+            valid = agg_curve[~np.isnan(agg_curve)]
+            if len(valid) == 0:
+                return np.nan
+            task_mins[i] = np.min(valid)
+        return float(np.mean(task_mins))
 
     observed_stat = calc_metric_single_bootstrap(np.arange(n_valid))
     
@@ -561,9 +590,9 @@ def compute_min_acc_from_data(
 
     return {
         "n_seeds": n_valid,
-        "min-ACC_mean": observed_stat,
-        "min-ACC_ci_low": ci_low,
-        "min-ACC_ci_high": ci_high,
+        "min-P_mean": observed_stat,
+        "min-P_ci_low": ci_low,
+        "min-P_ci_high": ci_high,
     }
 
 
@@ -617,10 +646,11 @@ def compute_aggregate_curve(
 
     ``aggregation="iqm"`` returns the IQM and its 95% bootstrap confidence
     interval. ``aggregation="mean"`` returns the arithmetic mean and a band
-    one standard error below and above the mean.
+    one standard error below and above the mean. ``aggregation="mean_ci"``
+    returns the mean and its 95% bootstrap confidence interval.
     """
-    if aggregation not in {"iqm", "mean"}:
-        raise ValueError(f"Unknown aggregation {aggregation!r}; expected 'iqm' or 'mean'.")
+    if aggregation not in {"iqm", "mean", "mean_ci"}:
+        raise ValueError(f"Unknown aggregation {aggregation!r}; expected 'iqm', 'mean', or 'mean_ci'.")
 
     seed_frames = []
     for seed in seeds:
@@ -670,6 +700,10 @@ def compute_aggregate_curve(
         seed_matrix = pivot.values[np.ix_(row_indices, col_mask)]
         if aggregation == "iqm":
             center, lower, upper = bootstrap_iqm(
+                seed_matrix, n_bootstrap=n_bootstrap, confidence=0.95
+            )
+        elif aggregation == "mean_ci":
+            center, lower, upper = bootstrap_mean(
                 seed_matrix, n_bootstrap=n_bootstrap, confidence=0.95
             )
         else:

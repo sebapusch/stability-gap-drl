@@ -15,7 +15,7 @@ from common import (
 )
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "output"
-DEFAULT_SMOOTH = 5
+DEFAULT_SMOOTH = 1
 N_BOOTSTRAP = 10_000
 CONFIDENCE = 0.95
 
@@ -39,7 +39,7 @@ def format_ci(mean: float, ci_low: float, ci_high: float, precision: int = 1) ->
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Compute final performance P(Vi), P(T), and min-ACC for RL ablation experiments.",
+        description="Compute final normalized performance P and minimum previous-task performance min-P.",
     )
     parser.add_argument(
         "--config", type=str, required=True,
@@ -47,7 +47,7 @@ def main():
     )
     parser.add_argument(
         "--smooth", type=int, default=DEFAULT_SMOOTH,
-        help=f"Number of last evaluation points to average for final performance smoothing (default: {DEFAULT_SMOOTH}).",
+        help=f"Number of last evaluation points to average for final performance; 1 matches P(t_N) in the thesis (default: {DEFAULT_SMOOTH}).",
     )
     parser.add_argument(
         "--data_dir", type=str, default=None,
@@ -63,7 +63,7 @@ def main():
     )
     parser.add_argument(
         "--mean", action="store_true",
-        help="Use Mean (instead of IQM) across seeds for timestep aggregation (applies to both P(T) and min-ACC).",
+        help="Use Mean (instead of IQM) across seeds at each evaluation step (applies to both P and min-P).",
     )
     parser.add_argument(
         "--precision", type=int, default=1,
@@ -71,6 +71,8 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.smooth < 1:
+        parser.error("--smooth must be at least 1")
     data_dir = Path(args.data_dir) if args.data_dir else DATA_DIR
     cfg = parse_config(args.config)
 
@@ -84,7 +86,7 @@ def main():
     use_iqm = not args.mean
     env_max = get_env_max_return(env_name)
 
-    k_target = 3
+    k_target = len(benchmark)
     k_idx = k_target - 1
 
     print(f"Config: {args.config}", file=sys.stderr)
@@ -97,8 +99,8 @@ def main():
     print(f"  Aggregation:  {'IQM' if use_iqm else 'Mean'} by timestep", file=sys.stderr)
     print(file=sys.stderr)
 
-    if len(benchmark) <= k_idx:
-        print(f"Error: Benchmark needs at least {k_target} tasks for min-ACC at k={k_target}.", file=sys.stderr)
+    if k_target < 2:
+        print("Error: min-P requires at least two tasks.", file=sys.stderr)
         sys.exit(1)
 
     results = []
@@ -114,28 +116,29 @@ def main():
             combo_data, benchmark, args.smooth, use_iqm, env_max, args.confidence, N_BOOTSTRAP, timesteps_per_env
         )
 
-        # 3. Compute min-ACC
+        # 3. Compute min-P
         minacc = compute_min_acc_from_data(
-            combo_data, benchmark, k_idx, use_iqm, args.confidence, N_BOOTSTRAP, timesteps_per_env
+            combo_data, benchmark, k_idx, use_iqm, env_max, args.confidence, N_BOOTSTRAP, timesteps_per_env
         )
 
         # Merge results into a single row dictionary
         row = dict(hp_combo)
         row["n_seeds"] = perf["n_seeds"]
+        row["n_seeds_min_P"] = minacc["n_seeds"]
         
         # Add final performance fields
         for env in benchmark:
             row[f"{env}_mean"] = perf[f"{env}_mean"]
             row[f"{env}_ci_low"] = perf[f"{env}_ci_low"]
             row[f"{env}_ci_high"] = perf[f"{env}_ci_high"]
-        row["P(T)_mean"] = perf["P(T)_mean"]
-        row["P(T)_ci_low"] = perf["P(T)_ci_low"]
-        row["P(T)_ci_high"] = perf["P(T)_ci_high"]
+        row["P_mean"] = perf["P_mean"]
+        row["P_ci_low"] = perf["P_ci_low"]
+        row["P_ci_high"] = perf["P_ci_high"]
 
-        # Add min-ACC fields
-        row["min-ACC_mean"] = minacc["min-ACC_mean"]
-        row["min-ACC_ci_low"] = minacc["min-ACC_ci_low"]
-        row["min-ACC_ci_high"] = minacc["min-ACC_ci_high"]
+        # Add min-P fields
+        row["min-P_mean"] = minacc["min-P_mean"]
+        row["min-P_ci_low"] = minacc["min-P_ci_low"]
+        row["min-P_ci_high"] = minacc["min-P_ci_high"]
 
         results.append(row)
 
@@ -157,8 +160,8 @@ def main():
         parts = []
         for env in benchmark:
             parts.append(format_makecell(row[f"{env}_mean"], row[f"{env}_ci_low"], row[f"{env}_ci_high"], precision))
-        parts.append(format_makecell(row["P(T)_mean"], row["P(T)_ci_low"], row["P(T)_ci_high"], precision))
-        parts.append(format_makecell(row["min-ACC_mean"], row["min-ACC_ci_low"], row["min-ACC_ci_high"], precision))
+        parts.append(format_makecell(row["P_mean"], row["P_ci_low"], row["P_ci_high"], precision))
+        parts.append(format_makecell(row["min-P_mean"], row["min-P_ci_low"], row["min-P_ci_high"], precision))
 
         cells = " & ".join(f" {p}" for p in parts)
         latex_lines.append(f"{hp_label} & {cells} \\\\")
@@ -171,7 +174,7 @@ def main():
     md_lines.append(f"Smoothing: last {args.smooth} eval points | Seeds: {len(seeds)} | Confidence: {args.confidence * 100:.0f}% | Aggregation: {'IQM' if use_iqm else 'Mean'}")
     md_lines.append("")
     
-    headers = [k for k in hp_keys] + [env for env in benchmark] + ["P(T)", "min-ACC", "Seeds"]
+    headers = [k for k in hp_keys] + [env for env in benchmark] + ["P", "min-P", "Seeds (P/min-P)"]
     md_lines.append("| " + " | ".join(headers) + " |")
     md_lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
 
@@ -179,9 +182,9 @@ def main():
         parts = [str(row[k]) for k in hp_keys]
         for env in benchmark:
             parts.append(format_ci(row[f"{env}_mean"], row[f"{env}_ci_low"], row[f"{env}_ci_high"], precision))
-        parts.append(format_ci(row["P(T)_mean"], row["P(T)_ci_low"], row["P(T)_ci_high"], precision))
-        parts.append(format_ci(row["min-ACC_mean"], row["min-ACC_ci_low"], row["min-ACC_ci_high"], precision))
-        parts.append(str(int(row["n_seeds"])))
+        parts.append(format_ci(row["P_mean"], row["P_ci_low"], row["P_ci_high"], precision))
+        parts.append(format_ci(row["min-P_mean"], row["min-P_ci_low"], row["min-P_ci_high"], precision))
+        parts.append(f"{int(row['n_seeds'])}/{int(row['n_seeds_min_P'])}")
         md_lines.append("| " + " | ".join(parts) + " |")
     md_output = "\n".join(md_lines)
 
@@ -194,15 +197,16 @@ def main():
             out[f"{env}_ci_low"] = row[f"{env}_ci_low"]
             out[f"{env}_ci_high"] = row[f"{env}_ci_high"]
             out[f"{env}_formatted"] = format_ci(row[f"{env}_mean"], row[f"{env}_ci_low"], row[f"{env}_ci_high"], precision)
-        out["P(T)_mean"] = row["P(T)_mean"]
-        out["P(T)_ci_low"] = row["P(T)_ci_low"]
-        out["P(T)_ci_high"] = row["P(T)_ci_high"]
-        out["P(T)_formatted"] = format_ci(row["P(T)_mean"], row["P(T)_ci_low"], row["P(T)_ci_high"], precision)
-        out["min-ACC_mean"] = row["min-ACC_mean"]
-        out["min-ACC_ci_low"] = row["min-ACC_ci_low"]
-        out["min-ACC_ci_high"] = row["min-ACC_ci_high"]
-        out["min-ACC_formatted"] = format_ci(row["min-ACC_mean"], row["min-ACC_ci_low"], row["min-ACC_ci_high"], precision)
+        out["P_mean"] = row["P_mean"]
+        out["P_ci_low"] = row["P_ci_low"]
+        out["P_ci_high"] = row["P_ci_high"]
+        out["P_formatted"] = format_ci(row["P_mean"], row["P_ci_low"], row["P_ci_high"], precision)
+        out["min-P_mean"] = row["min-P_mean"]
+        out["min-P_ci_low"] = row["min-P_ci_low"]
+        out["min-P_ci_high"] = row["min-P_ci_high"]
+        out["min-P_formatted"] = format_ci(row["min-P_mean"], row["min-P_ci_low"], row["min-P_ci_high"], precision)
         out["n_seeds"] = int(row["n_seeds"])
+        out["n_seeds_min_P"] = int(row["n_seeds_min_P"])
         csv_rows.append(out)
     df_csv = pd.DataFrame(csv_rows)
 

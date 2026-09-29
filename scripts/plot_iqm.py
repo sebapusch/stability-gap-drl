@@ -11,8 +11,9 @@ Supports two modes:
    python plot_iqm.py --config path/to/config.yaml
 
 Pass --compute-only to write the line data to CSV without creating figures.
-Pass --aggregation mean to plot the mean with a standard-error band instead
-of the default IQM with a 95% bootstrap confidence interval.
+Pass --aggregation mean to plot the mean with a standard-error band, or
+--aggregation mean_ci for the mean with a 95% bootstrap confidence interval.
+The default is IQM with a 95% bootstrap confidence interval.
 """
 
 import argparse
@@ -48,6 +49,7 @@ X_LABEL = "Cumulative training timesteps"
 Y_LABELS = {
     "iqm": "IQM episodic return (95% CI)",
     "mean": "Mean episodic return (standard error)",
+    "mean_ci": "Mean episodic return (95% CI)",
 }
 CACHE_SCHEMA_VERSION = "single-run-v2"
 
@@ -281,7 +283,7 @@ def load_config(path: str) -> dict:
             raise ValueError(f"Plot entry {i} key 'linewidth' must be a number.")
         if plot.get("aggregation", "iqm") not in Y_LABELS:
             raise ValueError(
-                f"Plot entry {i} key 'aggregation' must be 'iqm' or 'mean'."
+                f"Plot entry {i} key 'aggregation' must be 'iqm', 'mean', or 'mean_ci'."
             )
     if "defaults" in cfg and isinstance(cfg["defaults"], dict):
         for key in ["format", "ext", "output_file", "output_dir"]:
@@ -290,7 +292,7 @@ def load_config(path: str) -> dict:
         if "linewidth" in cfg["defaults"] and not isinstance(cfg["defaults"]["linewidth"], (int, float)):
             raise ValueError("YAML config 'defaults' key 'linewidth' must be a number.")
         if cfg["defaults"].get("aggregation", "iqm") not in Y_LABELS:
-            raise ValueError("YAML config 'defaults' key 'aggregation' must be 'iqm' or 'mean'.")
+            raise ValueError("YAML config 'defaults' key 'aggregation' must be 'iqm', 'mean', or 'mean_ci'.")
     return cfg
 
 
@@ -845,7 +847,8 @@ def parse_args():
     parser.add_argument(
         "--aggregation", choices=sorted(Y_LABELS), default=None,
         help=("Statistic and uncertainty band to plot: 'iqm' uses a 95%% bootstrap CI; "
-              "'mean' uses standard error (default: iqm)."),
+              "'mean' uses standard error; 'mean_ci' uses a 95%% bootstrap CI "
+              "for the mean (default: iqm)."),
     )
     parser.add_argument(
         "--compute-only", action="store_true",
@@ -895,6 +898,9 @@ def main():
 
     if args.config:
         cfg = load_config(args.config)
+        if isinstance(cfg['defaults']['seeds'], int):
+            cfg['defaults']['seeds'] = list(range(cfg['defaults']['seeds']))
+
         defaults = cfg.setdefault("defaults", {})
         if args.env_name and "env_name" not in defaults:
             defaults["env_name"] = args.env_name

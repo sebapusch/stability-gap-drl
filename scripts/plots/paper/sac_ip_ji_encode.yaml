@@ -1,0 +1,28 @@
+defaults:
+  env_name: InvertedPendulum
+  seeds: 50
+  timesteps: 100_000
+  output_dir: paper
+  output_file: sac_ip_ji
+  dpi: 500 # optional: default is 300
+  show_timesteps: true
+  show_x_label: true
+  show_y_label: true
+  format: png
+  # aggregation: mean
+
+plots:
+  ### WITH TASK ID ###
+
+  - title: 'Task 1 performance'
+    aggregation: mean_ci
+    lines:
+      - method: 'sac_ip_ji_encode/sac_ip_ji-e_auto-s_<s>'
+        num_tasks: 3
+        test_env: 0
+        label: 'P(1)'
+        linewidth: 1.5
+        color: "#EBCC2A"
+        smooth: 5
+
+
