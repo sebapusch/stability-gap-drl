@@ -20,4 +20,4 @@ lr: 0.0003
 time: "12:00:00"
 
 ablations:
-  seed: 50
+  seed: 25
