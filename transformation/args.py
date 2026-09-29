@@ -51,6 +51,9 @@ def get_args() -> Namespace:
     # ── SAC-specific ───────────────────────────────
     parser.add_argument("--ent_coef", default=None)
 
+    # ── JI-specific ───────────────────────────────
+    parser.add_argument('--ji_reset_optim', action=argparse.BooleanOptionalAction, default=True)
+
     return parser.parse_args()
 
 

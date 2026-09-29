@@ -14,13 +14,17 @@ class DQN_JointIncremental(OffPolicyJointIncremental, DQN):
         n_tasks: int,
         env: GymEnv,
         balanced_sampling: bool = False,
+        reset_optim: bool = True,
         **kwargs,
     ) -> None:
         kwargs["env"] = env
         DQN.__init__(self, **kwargs)
-        OffPolicyJointIncremental.__init__(
-            self, buffer_size, n_tasks, env, balanced_sampling=balanced_sampling
-        )
+        OffPolicyJointIncremental.__init__(self,
+                                           buffer_size,
+                                           n_tasks,
+                                           env,
+                                           balanced_sampling=balanced_sampling,
+                                           reset_optim=reset_optim)
 
     def reset_optimizer(self) -> None:
         self.policy.optimizer.state.clear()

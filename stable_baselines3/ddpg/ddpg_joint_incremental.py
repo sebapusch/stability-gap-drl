@@ -14,11 +14,16 @@ class DDPG_JointIncremental(OffPolicyJointIncremental, DDPG):
         n_tasks: int,
         env: GymEnv,
         balanced_sampling: bool = False,
+        reset_optim: bool = True,
         **kwargs,
     ) -> None:
         kwargs["env"] = env
         DDPG.__init__(self, **kwargs)
-        super().__init__(buffer_size, n_tasks, env, balanced_sampling)
+        super().__init__(buffer_size,
+                         n_tasks,
+                         env,
+                         balanced_sampling,
+                         reset_optim=reset_optim)
 
     def reset_optimizer(self) -> None:
         self.policy.actor.optimizer.state.clear()

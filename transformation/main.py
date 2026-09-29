@@ -76,6 +76,7 @@ def _build_dqn(
     balanced_sampling: bool,
     policy_kwargs: dict[str, Any],
     exploration_strategy: str = "eps-greedy",
+    ji_reset_optim: bool = True,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -105,6 +106,7 @@ def _build_dqn(
             return DQN_JointIncremental(
                 n_tasks=n_tasks,
                 balanced_sampling=balanced_sampling,
+                reset_optim=ji_reset_optim,
                 **common_kwargs,
             )
         case _:
@@ -126,6 +128,7 @@ def _build_sacd(
     n_tasks: int,
     balanced_sampling: bool,
     policy_kwargs: dict[str, Any],
+    ji_reset_optim: bool = True,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -150,6 +153,7 @@ def _build_sacd(
             return SACD_JointIncremental(
                 n_tasks=n_tasks,
                 balanced_sampling=balanced_sampling,
+                reset_optim=ji_reset_optim,
                 **common_kwargs,
             )
         case _:
@@ -171,6 +175,7 @@ def _build_sac(
     n_tasks: int,
     balanced_sampling: bool,
     policy_kwargs: dict[str, Any],
+    ji_reset_optim: bool = True,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -195,6 +200,7 @@ def _build_sac(
             return SAC_JointIncremental(
                 n_tasks=n_tasks,
                 balanced_sampling=balanced_sampling,
+                reset_optim=ji_reset_optim,
                 **common_kwargs,
             )
         case _:
@@ -215,6 +221,7 @@ def _build_ddpg(
     n_tasks: int,
     balanced_sampling: bool,
     policy_kwargs: dict[str, Any],
+    ji_reset_optim: bool = True,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -238,6 +245,7 @@ def _build_ddpg(
             return DDPG_JointIncremental(
                 balanced_sampling=balanced_sampling,
                 n_tasks=n_tasks,
+                reset_optim=ji_reset_optim,
                 **common_kwargs,
             )
         case _:
@@ -414,6 +422,7 @@ def main(
     mode: str = "continual",
     store_weights: bool = False,
     exploration_strategy: str = "eps-greedy",
+    ji_reset_optim: bool = True,
 ) -> None:
     bench = get_benchmark(env, seed, encode_task)
 
@@ -430,6 +439,7 @@ def main(
         network_size=network_size,
         n_tasks=len(bench),
         balanced_sampling=balanced_sampling,
+        ji_reset_optim=ji_reset_optim,
         policy_kwargs=dict(
             optimizer_class=OPTIMIZERS[optimizer][0],
             optimizer_kwargs=OPTIMIZERS[optimizer][1],
@@ -540,4 +550,7 @@ if __name__ == "__main__":
             args["ent_coef"] = None
         else:
             args["ent_coef"] = float(args["ent_coef"])
+
+    print(args)
+    exit()
     main(**args)
