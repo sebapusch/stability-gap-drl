@@ -8,7 +8,7 @@ METHODS = [
 ENVS = ["cartpole", "inverted_pendulum"]
 OPTIMIZERS = ["adam", "sgd", "rmsprop", "sgd_momentum", "adamw"]
 ALGORITHMS = ["dqn", "sacd", "sac", "ddpg"]
-MODES = ["continual", "multitask"]
+MODES = ["continual", "multitask", "individual"]
 
 
 def get_args() -> Namespace:
