@@ -388,13 +388,17 @@ def compute_final_performance_from_data(
     confidence: float,
     n_bootstrap: int,
     timesteps_per_env: int,
+    interval: str = "ci",
 ) -> dict:
     """Compute P at the final evaluation from environment-normalized returns.
 
     Aggregate seeds at each evaluation step before averaging over tasks. With
     ``n_smooth=1`` this is P(t_N) as defined in the thesis; larger values
     optionally average the last few evaluation steps for each task.
+    ``interval='se'`` reports a one-standard-error band around the mean.
     """
+    if interval not in {"ci", "se"}:
+        raise ValueError("interval must be 'ci' or 'se'")
     if not np.isfinite(env_max) or env_max <= 0:
         raise ValueError("env_max must be positive and finite")
     aligned_curves = {}
@@ -460,6 +464,31 @@ def compute_final_performance_from_data(
         return env_scores
 
     obs_env_scores = calc_perf_single_bootstrap(np.arange(n_valid))
+
+    if interval == "se" and not use_iqm:
+        # Each final task score is a mean over evaluations for each seed.
+        # Compute the usual standard error over seeds, as for plot_iqm.py.
+        seed_env_scores = np.column_stack([
+            np.mean(stacked_mapped[env], axis=0) for env in benchmark
+        ])
+        seed_p_scores = np.mean(seed_env_scores, axis=1)
+        env_errors = (
+            np.std(seed_env_scores, axis=0, ddof=1) / np.sqrt(n_valid)
+            if n_valid > 1 else np.full(len(benchmark), np.nan)
+        )
+        p_error = (
+            float(np.std(seed_p_scores, ddof=1) / np.sqrt(n_valid))
+            if n_valid > 1 else np.nan
+        )
+        res = {"n_seeds": n_valid}
+        for idx, env in enumerate(benchmark):
+            res[f"{env}_mean"] = float(obs_env_scores[idx])
+            res[f"{env}_ci_low"] = float(obs_env_scores[idx] - env_errors[idx])
+            res[f"{env}_ci_high"] = float(obs_env_scores[idx] + env_errors[idx])
+        res["P_mean"] = float(np.mean(obs_env_scores))
+        res["P_ci_low"] = res["P_mean"] - p_error
+        res["P_ci_high"] = res["P_mean"] + p_error
+        return res
     
     # Run bootstrap
     rng = np.random.default_rng(42)
@@ -482,6 +511,10 @@ def compute_final_performance_from_data(
         if len(valid_boot) == 0:
             res[f"{env}_ci_low"] = np.nan
             res[f"{env}_ci_high"] = np.nan
+        elif interval == "se":
+            error = float(np.std(valid_boot))
+            res[f"{env}_ci_low"] = float(obs_env_scores[idx] - error)
+            res[f"{env}_ci_high"] = float(obs_env_scores[idx] + error)
         else:
             res[f"{env}_ci_low"] = float(np.percentile(valid_boot, 100 * alpha))
             res[f"{env}_ci_high"] = float(np.percentile(valid_boot, 100 * (1 - alpha)))
@@ -491,6 +524,11 @@ def compute_final_performance_from_data(
         res["P_mean"] = obs_pt
         res["P_ci_low"] = np.nan
         res["P_ci_high"] = np.nan
+    elif interval == "se":
+        error = float(np.std(valid_boot_pt))
+        res["P_mean"] = obs_pt
+        res["P_ci_low"] = obs_pt - error
+        res["P_ci_high"] = obs_pt + error
     else:
         res["P_mean"] = obs_pt
         res["P_ci_low"] = float(np.percentile(valid_boot_pt, 100 * alpha))
@@ -507,12 +545,16 @@ def compute_min_acc_from_data(
     confidence: float,
     n_bootstrap: int,
     timesteps_per_env: int,
+    interval: str = "ci",
 ) -> dict:
     """Compute min-P from environment-normalized, seed-aggregated curves.
 
     For each previous task i, take the minimum strictly after its training
     boundary through the end of task k, then average those minima.
+    ``interval='se'`` estimates the statistic's standard error by bootstrap.
     """
+    if interval not in {"ci", "se"}:
+        raise ValueError("interval must be 'ci' or 'se'")
     if not np.isfinite(env_max) or env_max <= 0:
         raise ValueError("env_max must be positive and finite")
     aligned_curves = {}
@@ -584,6 +626,10 @@ def compute_min_acc_from_data(
     if len(valid_boot) == 0:
         ci_low = np.nan
         ci_high = np.nan
+    elif interval == "se":
+        error = float(np.std(valid_boot))
+        ci_low = observed_stat - error
+        ci_high = observed_stat + error
     else:
         ci_low = float(np.percentile(valid_boot, 100 * alpha))
         ci_high = float(np.percentile(valid_boot, 100 * (1 - alpha)))

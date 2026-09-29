@@ -14,6 +14,7 @@ from common import (
     get_env_max_return,
     parse_config,
 )
+from compute_metrics import format_latex_cell
 
 
 TIMESTEPS = [100, 150, 200, 250, 300]
@@ -73,6 +74,35 @@ class ThesisMetricsTests(unittest.TestCase):
             sample_data(), BENCHMARK, 2, False, 100, 0.95, 100, 100
         )
         self.assertAlmostEqual(minimum["min-P_mean"], (32 + 40) / 2)
+
+    def test_mean_standard_error_and_mean_bootstrap_ci(self):
+        data = sample_data()
+        for compute, args, metric in (
+            (compute_final_performance_from_data, (data, BENCHMARK, 1, False, 100, 0.95, 500, 100), "P"),
+            (compute_min_acc_from_data, (data, BENCHMARK, 2, False, 100, 0.95, 500, 100), "min-P"),
+        ):
+            mean_se = compute(*args, interval="se")
+            mean_ci = compute(*args, interval="ci")
+            self.assertEqual(mean_se[f"{metric}_mean"], mean_ci[f"{metric}_mean"])
+            self.assertAlmostEqual(
+                mean_se[f"{metric}_mean"] - mean_se[f"{metric}_ci_low"],
+                mean_se[f"{metric}_ci_high"] - mean_se[f"{metric}_mean"],
+            )
+            self.assertGreater(mean_se[f"{metric}_ci_high"], mean_se[f"{metric}_ci_low"])
+
+        per_seed_p = np.array([0, 0, 0, 0, 0], dtype=float)
+        per_seed_p[1:] = (80 + 50 + 70) / 3
+        expected_error = np.std(per_seed_p, ddof=1) / np.sqrt(len(per_seed_p))
+        final_se = compute_final_performance_from_data(
+            data, BENCHMARK, 1, False, 100, 0.95, 500, 100, interval="se"
+        )
+        self.assertAlmostEqual(final_se["P_ci_high"] - final_se["P_mean"], expected_error)
+
+    def test_latex_cell_uses_inline_scriptsize_interval(self):
+        self.assertEqual(
+            format_latex_cell(42.9, 29.1, 59.6),
+            r"42.9{\scriptsize (29.1,59.6)}",
+        )
 
     def test_staggered_seed_dips_do_not_become_the_minimum(self):
         data = {}

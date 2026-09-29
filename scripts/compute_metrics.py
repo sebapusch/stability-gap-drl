@@ -15,18 +15,18 @@ from common import (
 )
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "output"
-DEFAULT_SMOOTH = 1
+DEFAULT_SMOOTH = 15
 N_BOOTSTRAP = 10_000
 CONFIDENCE = 0.95
 
 
-def format_makecell(mean: float, ci_low: float, ci_high: float, precision: int = 1) -> str:
-    """Format as \\makecell{<mean> \\footnotesize (<ci_low>,<ci_high>)}."""
+def format_latex_cell(mean: float, lower: float, upper: float, precision: int = 1) -> str:
+    """Format a value and its interval for a LaTeX table cell."""
     if np.isnan(mean):
-        return r"\makecell{N/A}"
+        return "N/A"
     return (
-        rf"\makecell{{{mean:.{precision}f} "
-        rf"\footnotesize ({ci_low:.{precision}f},{ci_high:.{precision}f})}}"
+        rf"{mean:.{precision}f}{{\scriptsize "
+        rf"({lower:.{precision}f},{upper:.{precision}f})}}"
     )
 
 
@@ -59,11 +59,20 @@ def main():
     )
     parser.add_argument(
         "--confidence", type=float, default=CONFIDENCE,
-        help=f"Confidence level for bootstrap CI (default: {CONFIDENCE}).",
+        help=f"Confidence level for iqm and mean_ci bootstrap intervals (default: {CONFIDENCE}).",
+    )
+    aggregation_group = parser.add_mutually_exclusive_group()
+    aggregation_group.add_argument(
+        "--aggregation", choices=("mean", "iqm", "mean_ci"), default="iqm",
+        help="'mean' uses standard error; 'iqm' and 'mean_ci' use bootstrap confidence intervals (default: iqm).",
+    )
+    aggregation_group.add_argument(
+        "--mean", action="store_true",
+        help="Alias for --aggregation mean_ci (previous mean behavior).",
     )
     parser.add_argument(
-        "--mean", action="store_true",
-        help="Use Mean (instead of IQM) across seeds at each evaluation step (applies to both P and min-P).",
+        "--seeds", nargs="+", type=int,
+        help="Seed IDs to include; a single value N selects seeds 0 through N-1.",
     )
     parser.add_argument(
         "--precision", type=int, default=1,
@@ -79,11 +88,18 @@ def main():
     env_name = cfg["env"]
     benchmark = cfg["benchmark"]
     seeds = cfg["seeds"]
+    if args.seeds is not None:
+        seeds = list(range(args.seeds[0])) if len(args.seeds) == 1 else args.seeds
+    if not seeds:
+        parser.error("--seeds must select at least one seed")
     name_prefix = cfg["name_prefix"]
     project = cfg["project"]
     all_ablation_keys = cfg["all_ablation_keys"]
     hp_keys = cfg["hp_keys"]
-    use_iqm = not args.mean
+    aggregation = "mean_ci" if args.mean else args.aggregation
+    use_iqm = aggregation == "iqm"
+    interval = "se" if aggregation == "mean" else "ci"
+    uncertainty = "standard error" if interval == "se" else f"{args.confidence * 100:.0f}% CI"
     env_max = get_env_max_return(env_name)
 
     k_target = len(benchmark)
@@ -95,8 +111,8 @@ def main():
     print(f"  Benchmark:    {benchmark}", file=sys.stderr)
     print(f"  Seeds:        {seeds}", file=sys.stderr)
     print(f"  Smoothing:    last {args.smooth} eval points", file=sys.stderr)
-    print(f"  Confidence:   {args.confidence * 100:.0f}%", file=sys.stderr)
-    print(f"  Aggregation:  {'IQM' if use_iqm else 'Mean'} by timestep", file=sys.stderr)
+    print(f"  Uncertainty:  {uncertainty}", file=sys.stderr)
+    print(f"  Aggregation:  {aggregation} by timestep", file=sys.stderr)
     print(file=sys.stderr)
 
     if k_target < 2:
@@ -113,12 +129,14 @@ def main():
 
         # 2. Compute final performance
         perf = compute_final_performance_from_data(
-            combo_data, benchmark, args.smooth, use_iqm, env_max, args.confidence, N_BOOTSTRAP, timesteps_per_env
+            combo_data, benchmark, args.smooth, use_iqm, env_max, args.confidence, N_BOOTSTRAP, timesteps_per_env,
+            interval=interval,
         )
 
         # 3. Compute min-P
         minacc = compute_min_acc_from_data(
-            combo_data, benchmark, k_idx, use_iqm, env_max, args.confidence, N_BOOTSTRAP, timesteps_per_env
+            combo_data, benchmark, k_idx, use_iqm, env_max, args.confidence, N_BOOTSTRAP, timesteps_per_env,
+            interval=interval,
         )
 
         # Merge results into a single row dictionary
@@ -159,19 +177,18 @@ def main():
 
         parts = []
         for env in benchmark:
-            parts.append(format_makecell(row[f"{env}_mean"], row[f"{env}_ci_low"], row[f"{env}_ci_high"], precision))
-        parts.append(format_makecell(row["P_mean"], row["P_ci_low"], row["P_ci_high"], precision))
-        parts.append(format_makecell(row["min-P_mean"], row["min-P_ci_low"], row["min-P_ci_high"], precision))
+            parts.append(format_latex_cell(row[f"{env}_mean"], row[f"{env}_ci_low"], row[f"{env}_ci_high"], precision))
+        parts.append(format_latex_cell(row["P_mean"], row["P_ci_low"], row["P_ci_high"], precision))
+        parts.append(format_latex_cell(row["min-P_mean"], row["min-P_ci_low"], row["min-P_ci_high"], precision))
 
-        cells = " & ".join(f" {p}" for p in parts)
-        latex_lines.append(f"{hp_label} & {cells} \\\\")
-    latex_output = "\n".join(latex_lines)
+        latex_lines.append(f"{hp_label} & \n    " + " & \n    ".join(parts) + r" \\")
+    latex_output = "\n\n".join(latex_lines)
 
     # 2. Markdown Table
     md_lines = []
     md_lines.append(f"# Performance Metrics — {name_prefix}")
     md_lines.append("")
-    md_lines.append(f"Smoothing: last {args.smooth} eval points | Seeds: {len(seeds)} | Confidence: {args.confidence * 100:.0f}% | Aggregation: {'IQM' if use_iqm else 'Mean'}")
+    md_lines.append(f"Smoothing: last {args.smooth} eval points | Seeds: {len(seeds)} | Uncertainty: {uncertainty} | Aggregation: {aggregation}")
     md_lines.append("")
     
     headers = [k for k in hp_keys] + [env for env in benchmark] + ["P", "min-P", "Seeds (P/min-P)"]
