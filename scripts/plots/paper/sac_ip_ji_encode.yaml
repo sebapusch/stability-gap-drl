@@ -20,9 +20,18 @@ plots:
       - method: 'sac_ip_ji_encode/sac_ip_ji-e_auto-s_<s>'
         num_tasks: 3
         test_env: 0
-        label: 'P(1)'
+        label: 'Task 1'
         linewidth: 1.5
         color: "#EBCC2A"
         smooth: 5
+
+      - method: 'sac_ip_ji_encode/sac_ip_ji-e_auto-s_<s>'
+        num_tasks: 3
+        test_env: 1
+        label: 'Task 2'
+        linewidth: 1.5
+        color: "#EBCC2A"
+        smooth: 5
+
 
 

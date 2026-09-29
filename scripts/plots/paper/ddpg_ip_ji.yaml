@@ -17,7 +17,16 @@ plots:
       - method: 'ddpg_ip_ji_encode/ddpg_ip_ji-s_<s>'
         num_tasks: 3
         test_env: 0
-        label: 'P(1)'
+        label: 'Task 1'
         color: "#EBCC2A"
         linewidth: 1.5
         smooth: 10
+
+      - method: 'ddpg_ip_ji_encode/ddpg_ip_ji-s_<s>'
+        num_tasks: 3
+        test_env: 1
+        label: 'Task 2'
+        color: "#EBCC2A"
+        linewidth: 1.5
+        smooth: 10
+

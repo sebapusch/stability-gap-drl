@@ -17,7 +17,16 @@ plots:
       - method: 'dqn_cp_ji_encode_more_freq_eval/dqn_cp_ji-s_<s>'
         num_tasks: 3
         test_env: 0
-        label: ''
+        label: 'Task 1'
         color: "#EBCC2A"
         linewidth: 1
         smooth: 5
+
+      - method: 'dqn_cp_ji_encode_more_freq_eval/dqn_cp_ji-s_<s>'
+        num_tasks: 3
+        test_env: 1
+        label: 'Task 2'
+        color: "#EBCC2A"
+        linewidth: 1
+        smooth: 5
+
