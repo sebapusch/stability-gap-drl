@@ -164,8 +164,9 @@ class SACD(OffPolicyAlgorithm):
         self.batch_norm_stats_target = get_parameters_by_name(self.critic_target, ["running_"])
         # Target entropy is used when learning the entropy coefficient
         if self.target_entropy == "auto":
-            # we set the max possible entropy as the target entropy
-            self.target_entropy = 0.98 * -np.log(1 / np.prod(np.array(self.action_space.shape)))
+            # Target 98% of the maximum entropy for a discrete action space.
+            assert isinstance(self.action_space, spaces.Discrete)
+            self.target_entropy = float(0.98 * np.log(self.action_space.n))
         else:
             # Force conversion
             # this will also throw an error for unexpected string
