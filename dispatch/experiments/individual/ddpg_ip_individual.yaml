@@ -1,0 +1,23 @@
+name_prefix: "ddpg_ip_individual"
+project: "ddpg_ip_individual"
+algorithm: "ddpg"
+env: "inverted_pendulum"
+method: "fine_tune"
+mode: "individual"
+batch_size: 128
+eval_freq: 500
+video_freq: 0
+n_eval_episodes: 15
+gamma: 0.99
+buffer_size: 1_000_000
+target_update: 1000
+learning_starts: 1000
+total_timesteps: 100_000
+network_size: 256
+encode_task: true
+lr: 0.0003
+
+time: "12:00:00"
+
+ablations:
+  seed: 50

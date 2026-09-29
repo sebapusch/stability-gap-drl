@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable
 
 from stable_baselines3.ddpg.ddpg_fine_tune import DDPG_FineTune
 from transformation.args import get_args, parse_eval_freq
@@ -341,6 +341,49 @@ def train_multitask(
     run.finish()
 
 
+def train_individual(
+    benchmark: TransformedEnvBenchmark,
+    envs_train: list[GymEnv],
+    envs_test: list[GymEnv],
+    make_model: Callable[[], tuple[dict, ContinualLearning]],
+    tags: list[str],
+    name_prefix: str,
+    project: str,
+    eval_freq: int | list[tuple[int, int]],
+    video_freq: int,
+    n_eval_episodes: int,
+    total_timesteps: int,
+) -> None:
+    for ix, train_env in enumerate(envs_train):
+        config, model = make_model()
+
+        run = wandb.init(
+            name=f"{name_prefix}-task-{ix}",
+            project=project,
+            config=config,
+            tags=tags,
+        )
+
+        loggers = make_logger(project, run.name)
+        callbacks = make_callbacks(
+            benchmark=benchmark,
+            envs_test=[envs_test[ix]],
+            eval_freq=eval_freq,
+            video_freq=video_freq,
+            n_eval_episodes=n_eval_episodes,
+            eval_all=False,
+        )
+
+        model.on_task_change(0, train_env, loggers)
+        model.learn(
+            total_timesteps=total_timesteps,
+            callback=callbacks(ix),
+            reset_num_timesteps=False,
+        )
+
+        run.finish()
+
+
 def main(
     env: str = "cartpole",
     seed: int = 42,
@@ -418,24 +461,27 @@ def main(
     )
 
     train_env_init = envs_train[0]
-    match algorithm:
-        case "dqn":
-            config = dqn_build_kwargs
-            model = _build_dqn(train_env_init, **dqn_build_kwargs)
-        case "sac":
-            config = sac_build_kwargs
-            model = _build_sac(train_env_init, **sac_build_kwargs)
-        case "sacd":
-            config = sacd_build_kwargs
-            model = _build_sacd(train_env_init, **sacd_build_kwargs)
-        case "ddpg":
-            config = ddpg_build_kwargs
-            model = _build_ddpg(train_env_init, **ddpg_build_kwargs)
-        case _:
-            raise ValueError(f'Unknown algorithm "{algorithm}"')
+
+    def make_model() -> tuple[dict, ContinualLearning]:
+        match algorithm:
+            case "dqn":
+                cfg = dqn_build_kwargs
+                return cfg, _build_dqn(train_env_init, **dqn_build_kwargs)
+            case "sac":
+                cfg = sac_build_kwargs
+                return cfg, _build_sac(train_env_init, **sac_build_kwargs)
+            case "sacd":
+                cfg = sacd_build_kwargs
+                return cfg, _build_sacd(train_env_init, **sacd_build_kwargs)
+            case "ddpg":
+                cfg = ddpg_build_kwargs
+                return cfg, _build_ddpg(train_env_init, **ddpg_build_kwargs)
+            case _:
+                raise ValueError(f'Unknown algorithm "{algorithm}"')
 
     match mode:
-        case "continual":
+        case 'continual':
+            config, model = make_model()
             train_continual(
                 benchmark=bench,
                 envs_train=envs_train,
@@ -452,7 +498,8 @@ def main(
                 total_timesteps=total_timesteps,
                 store_weights=store_weights,
             )
-        case "multitask":
+        case 'multitask':
+            config, model = make_model()
             train_multitask(
                 benchmark=bench,
                 envs_train=envs_train,
@@ -465,6 +512,20 @@ def main(
                 video_freq=video_freq,
                 n_eval_episodes=n_eval_episodes,
                 config=config,
+                total_timesteps=total_timesteps,
+            )
+        case 'individual':
+            train_individual(
+                benchmark=bench,
+                envs_train=envs_train,
+                envs_test=envs_test,
+                make_model=make_model,
+                tags=[f"s-{str(seed)}", method, optimizer, f"lr-{str(lr)}"],
+                name_prefix=name_prefix,
+                project=project,
+                eval_freq=eval_freq,
+                video_freq=video_freq,
+                n_eval_episodes=n_eval_episodes,
                 total_timesteps=total_timesteps,
             )
         case _:
