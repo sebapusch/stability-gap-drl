@@ -21,4 +21,4 @@ ent_coef: "auto"
 time: "12:00:00"
 
 ablations:
-  seed: 25
+  seed: 10
