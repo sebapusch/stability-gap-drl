@@ -551,6 +551,4 @@ if __name__ == "__main__":
         else:
             args["ent_coef"] = float(args["ent_coef"])
 
-    print(args)
-    exit()
     main(**args)
