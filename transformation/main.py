@@ -108,7 +108,7 @@ def _build_dqn(
             return DQN_JointIncremental(
                 n_tasks=n_tasks,
                 balanced_sampling=balanced_sampling,
-                reset_optim=ji_reset_optim,
+                reset_optim_on_task_change=ji_reset_optim,
                 **common_kwargs,
             )
         case _:
@@ -155,7 +155,7 @@ def _build_sacd(
             return SACD_JointIncremental(
                 n_tasks=n_tasks,
                 balanced_sampling=balanced_sampling,
-                reset_optim=ji_reset_optim,
+                reset_optim_on_task_change=ji_reset_optim,
                 **common_kwargs,
             )
         case _:
@@ -202,7 +202,7 @@ def _build_sac(
             return SAC_JointIncremental(
                 n_tasks=n_tasks,
                 balanced_sampling=balanced_sampling,
-                reset_optim=ji_reset_optim,
+                reset_optim_on_task_change=ji_reset_optim,
                 **common_kwargs,
             )
         case _:
@@ -260,7 +260,7 @@ def _build_ddpg(
             return DDPG_JointIncremental(
                 balanced_sampling=balanced_sampling,
                 n_tasks=n_tasks,
-                reset_optim=ji_reset_optim,
+                reset_optim_on_task_change=ji_reset_optim,
                 **common_kwargs,
             )
         case _:
