@@ -54,6 +54,9 @@ def get_args() -> Namespace:
     # ── SAC-specific ───────────────────────────────
     parser.add_argument("--ent_coef", default=None)
 
+    # DDPG-specific exploration noise (in normalized action units).
+    parser.add_argument("--ddpg_action_noise_std", default=0.0, type=float)
+
     # ── JI-specific ───────────────────────────────
     parser.add_argument('--ji_reset_optim', action=argparse.BooleanOptionalAction, default=True)
 

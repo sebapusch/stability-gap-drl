@@ -1,6 +1,8 @@
 from typing import Any, Callable
 
+import numpy as np
 from stable_baselines3.ddpg.ddpg_fine_tune import DDPG_FineTune
+from stable_baselines3.common.noise import NormalActionNoise
 from transformation.args import get_args, parse_eval_freq
 from transformation.callbacks import make_callbacks
 from gymnasium.envs.classic_control import CartPoleEnv
@@ -222,8 +224,20 @@ def _build_ddpg(
     balanced_sampling: bool,
     policy_kwargs: dict[str, Any],
     ji_reset_optim: bool = True,
+    ddpg_action_noise_std: float = 0.0,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
+
+    if ddpg_action_noise_std < 0:
+        raise ValueError("ddpg_action_noise_std must be nonnegative")
+    n_actions = train_env.action_space.shape[-1]
+    action_noise = (
+        NormalActionNoise(
+            mean=np.zeros(n_actions),
+            sigma=ddpg_action_noise_std * np.ones(n_actions),
+        )
+        if ddpg_action_noise_std > 0 else None
+    )
 
     common_kwargs = dict(
         policy="MlpPolicy",
@@ -236,6 +250,7 @@ def _build_ddpg(
         batch_size=batch_size,
         policy_kwargs=policy_kwargs,
         seed=seed,
+        action_noise=action_noise,
     )
 
     match method:
@@ -428,6 +443,7 @@ def main(
     eval_all: bool = True,
     algorithm: str = "dqn",
     ent_coef: float | str | None = None,
+    ddpg_action_noise_std: float = 0.0,
     dqn_tau: float = 1.0,
     network_size: int | None = None,
     optimizer: str = "adam",
@@ -480,6 +496,7 @@ def main(
 
     ddpg_build_kwargs = dict(
         **common_build_kwargs,
+        ddpg_action_noise_std=ddpg_action_noise_std,
     )
 
     train_env_init = envs_train[0]
