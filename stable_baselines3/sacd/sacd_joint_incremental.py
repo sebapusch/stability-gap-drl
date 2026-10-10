@@ -34,5 +34,5 @@ class SACD_JointIncremental(OffPolicyJointIncremental, SACD):
 
         # Reset entropy coefficient to its initial value
         if self.ent_coef_optimizer is not None:
-            self.log_ent_coef.data.fill_(0.0)
+           #  self.log_ent_coef.data.fill_(0.0)
             self.ent_coef_optimizer.state.clear()
