@@ -263,6 +263,8 @@ def train_continual(
     eval_freq: int | list[tuple[int, int]],
     video_freq: int,
     n_eval_episodes: int,
+    eval_mode: str | list[str],
+    seed: int,
     config: dict[str, Any],
     eval_all: bool,
     total_timesteps: int,
@@ -276,18 +278,19 @@ def train_continual(
     )
 
     loggers = make_logger(project, run.name)
+    callbacks = make_callbacks(
+        benchmark=benchmark,
+        envs_test=envs_test,
+        eval_freq=eval_freq,
+        video_freq=video_freq,
+        n_eval_episodes=n_eval_episodes,
+        eval_all=eval_all,
+        eval_mode=eval_mode,
+        seed=seed,
+    )
 
     for ix, train_env in enumerate(envs_train):
         model.on_task_change(ix, train_env, loggers)
-
-        callbacks = make_callbacks(
-            benchmark=benchmark,
-            envs_test=envs_test,
-            eval_freq=eval_freq,
-            video_freq=video_freq,
-            n_eval_episodes=n_eval_episodes,
-            eval_all=eval_all,
-        )
 
         model.learn(
             total_timesteps=total_timesteps,
@@ -312,6 +315,8 @@ def train_multitask(
     eval_freq: int | list[tuple[int, int]],
     video_freq: int,
     n_eval_episodes: int,
+    eval_mode: str | list[str],
+    seed: int,
     config: dict[str, Any],
     total_timesteps: int,
 ) -> None:
@@ -338,6 +343,8 @@ def train_multitask(
         video_freq=video_freq,
         n_eval_episodes=n_eval_episodes,
         eval_all=False,
+        eval_mode=eval_mode,
+        seed=seed,
     )
 
     model.learn(
@@ -360,6 +367,8 @@ def train_individual(
     eval_freq: int | list[tuple[int, int]],
     video_freq: int,
     n_eval_episodes: int,
+    eval_mode: str | list[str],
+    seed: int,
     total_timesteps: int,
 ) -> None:
     for ix, train_env in enumerate(envs_train):
@@ -380,6 +389,8 @@ def train_individual(
             video_freq=video_freq,
             n_eval_episodes=n_eval_episodes,
             eval_all=False,
+            eval_mode=eval_mode,
+            seed=seed,
         )
 
         model.on_task_change(0, train_env, loggers)
@@ -401,6 +412,7 @@ def main(
     eval_freq: int | list[tuple[int, int]] = 500,
     video_freq: int = 0,
     n_eval_episodes: int = 15,
+    eval_mode: str | list[str] = "random",
     lr: float = 3e-4,
     gamma: float = 0.99,
     buffer_size: int = 50_000,
@@ -503,6 +515,8 @@ def main(
                 eval_freq=eval_freq,
                 video_freq=video_freq,
                 n_eval_episodes=n_eval_episodes,
+                eval_mode=eval_mode,
+                seed=seed,
                 config=config,
                 eval_all=eval_all,
                 total_timesteps=total_timesteps,
@@ -521,6 +535,8 @@ def main(
                 eval_freq=eval_freq,
                 video_freq=video_freq,
                 n_eval_episodes=n_eval_episodes,
+                eval_mode=eval_mode,
+                seed=seed,
                 config=config,
                 total_timesteps=total_timesteps,
             )
@@ -536,6 +552,8 @@ def main(
                 eval_freq=eval_freq,
                 video_freq=video_freq,
                 n_eval_episodes=n_eval_episodes,
+                eval_mode=eval_mode,
+                seed=seed,
                 total_timesteps=total_timesteps,
             )
         case _:

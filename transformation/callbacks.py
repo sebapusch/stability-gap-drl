@@ -24,8 +24,26 @@ def make_callbacks(
         n_eval_episodes: int,
         video_freq: int,
         eval_all: bool,
+        eval_mode: str | list[str] = "random",
+        seed: int = 42,
 ) -> Callable[[int], CallbackList]:
     wandb_callback = WandbCallback(gradient_save_freq=1000, verbose=2)
+    modes = [eval_mode] if isinstance(eval_mode, str) else list(eval_mode)
+    if not modes or len(set(modes)) != len(modes) or set(modes) - {"random", "fixed"}:
+        raise ValueError("eval_mode must be 'random', 'fixed', or both")
+    if n_eval_episodes < 1:
+        raise ValueError("n_eval_episodes must be positive")
+    fixed_episode_seeds = None
+    if "fixed" in modes:
+        if any(hasattr(env, "num_envs") for env in envs_test):
+            raise ValueError("fixed evaluation requires a single Gym environment per task")
+        fixed_episode_seeds = [
+            np.random.SeedSequence([seed, eval_ix]).generate_state(n_eval_episodes).tolist()
+            for eval_ix in range(len(envs_test))
+        ]
+        for env, seeds in zip(envs_test, fixed_episode_seeds):
+            for episode_seed in seeds:
+                env.reset(seed=episode_seed)
 
     def make(env_ix: int) -> CallbackList:
         """
@@ -47,6 +65,9 @@ def make_callbacks(
                 eval_envs=envs_test[:n_eval_envs],
                 eval_freq=eval_freq,
                 n_eval_episodes=n_eval_episodes,
+                eval_mode=eval_mode,
+                seed=seed,
+                fixed_episode_seeds=fixed_episode_seeds[:n_eval_envs] if fixed_episode_seeds is not None else None,
             )
         )
 
@@ -64,6 +85,9 @@ class EnvEvalCallback(EventCallback):
             eval_freq: int | list[tuple[int, int]] = 10000,
             deterministic: bool = True,
             verbose: int = 1,
+            eval_mode: str | list[str] = "random",
+            seed: int = 42,
+            fixed_episode_seeds: list[list[int]] | None = None,
     ):
         super().__init__()
 
@@ -74,10 +98,26 @@ class EnvEvalCallback(EventCallback):
         self.callback_on_new_best = callback_on_new_best
         self.eval_freq = eval_freq
         self.n_eval_episodes = n_eval_episodes
+        self.eval_modes = [eval_mode] if isinstance(eval_mode, str) else list(eval_mode)
+        if not self.eval_modes or len(set(self.eval_modes)) != len(self.eval_modes) or set(self.eval_modes) - {"random", "fixed"}:
+            raise ValueError("eval_mode must be 'random', 'fixed', or both")
+        if n_eval_episodes < 1:
+            raise ValueError("n_eval_episodes must be positive")
+        self.fixed_episode_seeds = fixed_episode_seeds or []
+        self.random_episode_rng = np.random.default_rng(np.random.SeedSequence([seed, 0xE1A1])) if len(self.eval_modes) > 1 else None
+        if "fixed" in self.eval_modes and fixed_episode_seeds is None:
+            for eval_ix, env in enumerate(eval_envs):
+                if hasattr(env, "num_envs"):
+                    raise ValueError("fixed evaluation requires a single Gym environment per task")
+                seeds = np.random.SeedSequence([seed, eval_ix]).generate_state(n_eval_episodes).tolist()
+                self.fixed_episode_seeds.append(seeds)
+                # Sample the initial states once when this run's callback is built.
+                for episode_seed in seeds:
+                    env.reset(seed=episode_seed)
         self.deterministic = deterministic
         self._is_success_buffer: list[bool] = []
         self.evaluations_successes: list[list[bool]] = []
-        self.best_mean_rewards = [0.0] * len(eval_envs)
+        self.best_mean_rewards = {mode: [0.0] * len(eval_envs) for mode in self.eval_modes}
         self.verbose = verbose
         self.task_start_timestep = 0
         self.last_eval_timestep: int | None = None
@@ -125,40 +165,46 @@ class EnvEvalCallback(EventCallback):
                         "and warning above."
                     ) from e
 
-            self._is_success_buffer = []
+            for mode in self.eval_modes:
+                self._is_success_buffer = []
+                episode_rewards, episode_lengths = evaluate_policy(
+                    self.model,
+                    eval_env,
+                    n_eval_episodes=self.n_eval_episodes,
+                    render=False,
+                    deterministic=self.deterministic,
+                    return_episode_rewards=True,
+                    warn=False,
+                    callback=self._log_success_callback,
+                    episode_seeds=(
+                        self.fixed_episode_seeds[eval_ix] if mode == "fixed" else
+                        self.random_episode_rng.integers(0, 2**32, size=self.n_eval_episodes).tolist()
+                        if self.random_episode_rng is not None else None
+                    ),
+                )
 
-            episode_rewards, episode_lengths = evaluate_policy(
-                self.model,
-                eval_env,
-                n_eval_episodes=self.n_eval_episodes,
-                render=False,
-                deterministic=self.deterministic,
-                return_episode_rewards=True,
-                warn=False,
-                callback=self._log_success_callback,
-            )
+                mean_reward = float(np.mean(episode_rewards))
+                mean_ep_length = float(np.mean(episode_lengths))
+                self.last_mean_reward = mean_reward
 
-            mean_reward = float(np.mean(episode_rewards))
-            mean_ep_length = float(np.mean(episode_lengths))
-            self.last_mean_reward = mean_reward
+                self.logger.record(f'eval/{mode}/{eval_ix}/mean_reward', mean_reward)
+                self.logger.record(f'eval/{mode}/{eval_ix}/mean_ep_length', mean_ep_length)
 
-            self.logger.record(f'eval/{eval_ix}/mean_reward', mean_reward)
-            self.logger.record(f'eval/{eval_ix}/mean_ep_length', mean_ep_length)
+                if mean_reward > self.best_mean_rewards[mode][eval_ix]:
+                    self.best_mean_rewards[mode][eval_ix] = mean_reward
+                    if self.verbose >= 1:
+                        print(f"New best {mode} mean reward for evaluation environment {eval_ix}!")
+
+                    if self.callback_on_new_best is not None:
+                        continue_training = (
+                            self.callback_on_new_best.on_step() and continue_training
+                        )
+
             self.logger.record(
                 f"time/{eval_ix}/total_timesteps",
                 self.num_timesteps,
                 exclude="tensorboard",
             )
-
-            if mean_reward > self.best_mean_rewards[eval_ix]:
-                self.best_mean_rewards[eval_ix] = mean_reward
-                if self.verbose >= 1:
-                    print(f"New best mean reward for evaluation environment {eval_ix}!")
-
-                if self.callback_on_new_best is not None:
-                    continue_training = (
-                        self.callback_on_new_best.on_step() and continue_training
-                    )
 
         # Commit all evaluation metrics in one W&B history row.
         self.logger.dump(self.num_timesteps)

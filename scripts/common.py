@@ -25,7 +25,7 @@ def parse_config(config_path: str) -> dict:
     benchmark = cfg.get("benchmark")
     if benchmark is None:
         # The current benchmark implementation names evaluation streams by
-        # their zero-based task index (eval/0, eval/1, ...).
+        # their zero-based task index (eval/random/0, eval/random/1, ...).
         benchmark = [str(i) for i in range(num_tasks)]
     else:
         benchmark = [str(task) for task in benchmark]
@@ -139,7 +139,7 @@ def load_all_csvs(data_dir: Path, name_prefix: str, benchmark: list[str], hp_com
     data = {}
     target_cols = []
     for env in benchmark:
-        target_cols.append(f"eval/{env}/mean_reward")
+        target_cols.append(f"eval/random/{env}/mean_reward")
         target_cols.append(f"time/{env}/total_timesteps")
     dir_name = project if project is not None else name_prefix
     for seed in seeds:
@@ -155,7 +155,7 @@ def load_all_csvs(data_dir: Path, name_prefix: str, benchmark: list[str], hp_com
 
 def load_final_reward(filepath: Path, eval_env: str, n_smooth: int) -> float | None:
     """Load smoothed final reward for one evaluation environment."""
-    target_col = f"eval/{eval_env}/mean_reward"
+    target_col = f"eval/random/{eval_env}/mean_reward"
     df = load_csv_columns(filepath, [target_col])
     if df.empty or target_col not in df.columns:
         return None
@@ -307,7 +307,7 @@ def get_aligned_curves(
         valid_seeds: list of seed IDs that were successfully loaded
     """
     seed_frames = []
-    reward_col = f"eval/{eval_env}/mean_reward"
+    reward_col = f"eval/random/{eval_env}/mean_reward"
     timestep_col = f"time/{eval_env}/total_timesteps"
 
     for seed, df in combo_data.items():
@@ -658,7 +658,7 @@ def load_eval_data(
     """
     Load eval data from the single CSV spanning the complete task sequence.
     """
-    reward_col = f"eval/{test_env}/mean_reward"
+    reward_col = f"eval/random/{test_env}/mean_reward"
     timestep_col = f"time/{test_env}/total_timesteps"
     target_cols = [reward_col, timestep_col]
 

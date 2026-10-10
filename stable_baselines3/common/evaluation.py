@@ -19,6 +19,7 @@ def evaluate_policy(
     reward_threshold: float | None = None,
     return_episode_rewards: bool = False,
     warn: bool = True,
+    episode_seeds: list[int] | None = None,
 ) -> tuple[float, float] | tuple[list[float], list[int]]:
     """
     Runs the policy for ``n_eval_episodes`` episodes and outputs the average return
@@ -53,6 +54,9 @@ def evaluate_policy(
         per episode will be returned instead of the mean.
     :param warn: If True (default), warns user about lack of a Monitor wrapper in the
         evaluation environment.
+    :param episode_seeds: Optional seed for each episode's initial reset. Requires
+        a single environment; repeated calls with the same seeds replay the same
+        initial states. Without this, evaluation retains its usual reset behavior.
     :return: Mean return per episode (sum of rewards), std of reward per episode.
         Returns (list[float], list[int]) when ``return_episode_rewards`` is True, first
         list containing per-episode return and second containing per-episode lengths
@@ -76,6 +80,11 @@ def evaluate_policy(
         )
 
     n_envs = env.num_envs
+    if episode_seeds is not None:
+        if n_envs != 1:
+            raise ValueError("episode_seeds requires a single evaluation environment")
+        if len(episode_seeds) != n_eval_episodes:
+            raise ValueError("episode_seeds must contain one seed per evaluation episode")
     episode_rewards = []
     episode_lengths = []
 
@@ -85,6 +94,8 @@ def evaluate_policy(
 
     current_rewards = np.zeros(n_envs)
     current_lengths = np.zeros(n_envs, dtype="int")
+    if episode_seeds is not None:
+        env.seed(episode_seeds[0])
     observations = env.reset()
     states = None
     episode_starts = np.ones((env.num_envs,), dtype=bool)
@@ -130,6 +141,11 @@ def evaluate_policy(
                     current_lengths[i] = 0
 
         observations = new_observations
+        if episode_seeds is not None and episode_counts[0] < n_eval_episodes and dones[0]:
+            # VecEnv auto-resets on done. Replace that reset with the next
+            # episode's seeded state before the policy sees its observation.
+            env.seed(episode_seeds[episode_counts[0]])
+            observations = env.reset()
 
         if render:
             env.render()

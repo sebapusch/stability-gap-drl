@@ -33,6 +33,15 @@ def process_yaml(yaml_path, dry):
     with open(yaml_path, "r") as f:
         config = yaml.safe_load(f)
 
+    if "eval_mode" in config:
+        eval_modes = config["eval_mode"]
+        if isinstance(eval_modes, str):
+            eval_modes = [eval_modes]
+        if (not isinstance(eval_modes, list) or not eval_modes
+                or len(eval_modes) != len(set(eval_modes))
+                or set(eval_modes) - {"random", "fixed"}):
+            raise ValueError("eval_mode must be 'random', 'fixed', or [random, fixed]")
+
     ablations = config.get("ablations", {})
 
     base_config = {k: v for k, v in config.items() if k != "ablations"}
