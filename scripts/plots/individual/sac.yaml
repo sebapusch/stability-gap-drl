@@ -1,0 +1,43 @@
+defaults:
+  env_name: InvertedPendulum
+  seeds: 50
+  timesteps: 100_000
+  output_dir: individual
+  output_file: sac
+  dpi: 500 # optional: default is 300
+  show_timesteps: true
+  show_x_label: true
+  show_y_label: true
+  format: png
+  # aggregation: mean
+
+plots:
+  ### WITH TASK ID ###
+
+  - title: ''
+    aggregation: mean_ci
+    lines:
+      - method: 'projects/sac_ip_individual/sac_ip_individual-s_<s>-task-0'
+        num_tasks: 1
+        test_env: 0
+        label: 'Task 1'
+        linewidth: 1.5
+        color: "#4E79A7"
+        smooth: 5
+
+      - method: 'projects/sac_ip_individual/sac_ip_individual-s_<s>-task-1'
+        num_tasks: 1
+        test_env: 0
+        label: 'Task 2'
+        linewidth: 1.5
+        color: "#F28E2C"
+        smooth: 5
+
+      - method: 'projects/sac_ip_individual/sac_ip_individual-s_<s>-task-2'
+        num_tasks: 1
+        test_env: 0
+        label: 'Task 3'
+        linewidth: 1.5
+        color: "#E15759"
+        smooth: 5
+

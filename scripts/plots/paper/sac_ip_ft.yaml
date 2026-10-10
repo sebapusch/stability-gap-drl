@@ -1,0 +1,40 @@
+defaults:
+  env_name: InvertedPendulum
+  seeds: 50
+  timesteps: 100_000
+  output_dir: paper
+  output_file: sac_ip_ft
+  dpi: 500 # optional: default is 300
+  show_timesteps: true
+  show_x_label: true
+  show_y_label: true
+  format: png
+  aggregation: mean_ci
+
+plots:
+  - title: 'Task 1 performance'
+    lines:
+      - method: 'sac_ip_ft/sac_ip_ft-e_auto-s_<s>-e_False'
+        num_tasks: 3
+        test_env: 0
+        label: 'Task 1'
+        color: "#E69F00"
+        linewidth: 1.5
+        smooth: 50
+
+      - method: 'sac_ip_ft/sac_ip_ft-e_auto-s_<s>-e_False'
+        num_tasks: 3
+        test_env: 1
+        label: 'Task 2'
+        color: "#56B4E9"
+        linewidth: 1.5
+        smooth: 50
+
+      - method: 'sac_ip_ft/sac_ip_ft-e_auto-s_<s>-e_False'
+        num_tasks: 3
+        test_env: 2
+        label: 'Task 3'
+        color: "#009E73"
+        linewidth: 1.5
+        smooth: 50
+
