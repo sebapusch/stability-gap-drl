@@ -15,6 +15,7 @@ class DQN_JointIncremental(OffPolicyJointIncremental, DQN):
         env: GymEnv,
         balanced_sampling: bool = False,
         reset_optim_on_task_change: bool = True,
+        reset_buffer_on_task_change: bool = True,
         **kwargs,
     ) -> None:
         kwargs["env"] = env
@@ -25,7 +26,8 @@ class DQN_JointIncremental(OffPolicyJointIncremental, DQN):
             n_tasks,
             env,
             balanced_sampling=balanced_sampling,
-            reset_optim_on_task_change=reset_optim_on_task_change
+            reset_optim_on_task_change=reset_optim_on_task_change,
+            reset_buffer_on_task_change=reset_buffer_on_task_change,
         )
 
     def reset_optimizer(self) -> None:

@@ -106,6 +106,8 @@ def process_yaml(yaml_path, dry):
                     cmd_lines.append("  --no-eval_all")
                 elif k == "ji_reset_optim":
                     cmd_lines.append(f"  --no-ji-reset-optim")
+                elif k == "ji_reset_buffer":
+                    cmd_lines.append(f"  --no-ji-reset-buffer")
             elif isinstance(v, list):
                 if len(v) == 1 and isinstance(v[0], str) and " " in v[0]:
                     v_str = v[0]

@@ -10,7 +10,15 @@ from stable_baselines3.continual import ContinualLearning
 class OffPolicyJointIncremental(ContinualLearning):
     replay_buffer: MultiReplayBuffer
 
-    def __init__(self, buffer_size: int, n_tasks: int, env: GymEnv, balanced_sampling: bool = False, reset_optim_on_task_change: bool = True) -> None:
+    def __init__(
+            self,
+            buffer_size: int,
+            n_tasks: int,
+            env: GymEnv,
+            balanced_sampling: bool = False,
+            reset_optim_on_task_change: bool = True,
+            reset_buffer_on_task_change: bool = True,
+    ) -> None:
         self.replay_buffer = MultiReplayBuffer(
             n_envs=n_tasks,
             buffer_size=buffer_size,
@@ -26,6 +34,7 @@ class OffPolicyJointIncremental(ContinualLearning):
         self._per_env_last_episode_starts: list[np.ndarray | None] = []
 
         self.reset_optim_on_task_change = reset_optim_on_task_change
+        self.reset_buffer_on_task_change = reset_buffer_on_task_change
 
 
     def _save_env_obs_state(self, env_idx: int) -> None:
@@ -124,7 +133,9 @@ class OffPolicyJointIncremental(ContinualLearning):
         # Reset exploration counter (target-net update counter)
         self._n_calls = 0
 
-        self.replay_buffer.reset()
+        if self.reset_buffer_on_task_change:
+            self.replay_buffer.reset()
+
         self.replay_buffer.active_index = task_ix
 
 

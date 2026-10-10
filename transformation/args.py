@@ -59,6 +59,7 @@ def get_args() -> Namespace:
 
     # ── JI-specific ───────────────────────────────
     parser.add_argument('--ji_reset_optim', action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument('--ji_reset_buffer', action=argparse.BooleanOptionalAction, default=True)
 
     return parser.parse_args()
 

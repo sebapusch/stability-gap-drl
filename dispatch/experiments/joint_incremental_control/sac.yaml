@@ -1,0 +1,27 @@
+name_prefix: "ji-sac"
+project: "ji-sac-no-reset"
+algorithm: "sac"
+env: "inverted_pendulum"
+method: "joint_incremental"
+batch_size: 128
+eval_freq: [10000, 15, 30000, 250, 1000]
+eval_mode: "random"
+n_eval_episodes: 15
+video_freq: 0
+gamma: 0.99
+buffer_size: 1_000_000
+target_update: 1000
+learning_starts: 1000
+total_timesteps: 150_000
+network_size: 256
+store_weights: true
+encode_task: true
+lr: 0.001
+ent_coef: "auto"
+ji_reset_optim: false
+ji_reset_buffer: false
+
+time: "40:00:00"
+
+ablations:
+  seed: 50

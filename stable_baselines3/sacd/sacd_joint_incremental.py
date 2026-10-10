@@ -6,13 +6,16 @@ from stable_baselines3.sacd.sacd import SACD
 class SACD_JointIncremental(OffPolicyJointIncremental, SACD):
     save = SACD.save
 
-    def __init__(self,
-                 buffer_size: int,
-                 n_tasks: int,
-                 env: GymEnv,
-                 balanced_sampling: bool = False,
-                 reset_optim_on_task_change: bool = True,
-                 **kwargs) -> None:
+    def __init__(
+            self,
+            buffer_size: int,
+            n_tasks: int,
+            env: GymEnv,
+            balanced_sampling: bool = False,
+            reset_optim_on_task_change: bool = True,
+            reset_buffer_on_task_change: bool = True,
+            **kwargs
+    ) -> None:
         kwargs['env'] = env
         SACD.__init__(self, **kwargs)
         OffPolicyJointIncremental.__init__(
@@ -21,7 +24,8 @@ class SACD_JointIncremental(OffPolicyJointIncremental, SACD):
             n_tasks,
             env,
             balanced_sampling=balanced_sampling,
-            reset_optim_on_task_change=reset_optim_on_task_change
+            reset_optim_on_task_change=reset_optim_on_task_change,
+            reset_buffer_on_task_change=reset_buffer_on_task_change,
         )
 
     def reset_optimizer(self) -> None:
