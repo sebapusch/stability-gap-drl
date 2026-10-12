@@ -1,0 +1,32 @@
+defaults:
+  env_name: InvertedPendulum
+  seeds: 50
+  timesteps: 150_000
+  output_dir: joint_incremental
+  output_file: ji-ddpg
+  dpi: 500 # optional: default is 300
+  show_timesteps: true
+  show_x_label: true
+  show_y_label: true
+  format: png
+  aggregation: mean_ci
+
+plots:
+  - title: 'Task 1 performance'
+    lines:
+      - method: 'joint_incremental/ji-ddpg-no-reset/ji-ddpg-s_<s>'
+        num_tasks: 3
+        test_env: 0
+        label: 'Task 1'
+        color: "#EBCC2A"
+        linewidth: 1.5
+        smooth: 30
+
+      - method: 'joint_incremental/ji-ddpg-no-reset/ji-ddpg-s_<s>'
+        num_tasks: 3
+        test_env: 1
+        label: 'Task 2'
+        color: "#FF0000"
+        linewidth: 1.5
+        smooth: 30
+

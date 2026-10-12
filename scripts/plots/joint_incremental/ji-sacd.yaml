@@ -1,0 +1,33 @@
+defaults:
+  env_name: InvertedPendulum
+  seeds: 50
+  timesteps: 150_000
+  output_dir: joint_incremental
+  output_file: ji-sacd
+  dpi: 500 # optional: default is 300
+  show_timesteps: true
+  show_x_label: true
+  show_y_label: true
+  format: png
+  aggregation: mean_ci
+
+plots:
+  - title: 'Task 1 performance'
+    lines:
+      - method: 'joint_incremental/ji-sacd/ji-sacd-s_<s>-l_00001'
+        num_tasks: 3
+        test_env: 0
+        label: 'Task 1'
+        linewidth: 1.5
+        color: "#EBCC2A"
+        smooth: 30
+
+      - method: 'joint_incremental/ji-sacd/ji-sacd-s_<s>-l_00001'
+        num_tasks: 3
+        test_env: 1
+        label: 'Task 2'
+        linewidth: 1.5
+        color: "#FF0000"
+        smooth: 30
+
+
