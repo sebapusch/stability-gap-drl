@@ -13,6 +13,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from linear_interpolation_grid_ip import (
     TASK_INDICES,
+    combine,
     load_policies,
     make_task_encoding,
     policy_fn,
@@ -31,7 +32,7 @@ class LoadPoliciesTests(unittest.TestCase):
                 model_path = str(Path(directory) / "model")
                 shapes = ((2, input_dim), (2, 2), (1, 2))
                 for task_index in TASK_INDICES:
-                    value = (task_index + 1) / 10
+                    value = (0.1, 0.2, 0.4)[task_index]
                     state = {}
                     for name, shape in zip(names, shapes):
                         state[f"{name}.weight"] = torch.full(shape, value)
@@ -43,16 +44,21 @@ class LoadPoliciesTests(unittest.TestCase):
                     with zipfile.ZipFile(f"{model_path}-{task_index}.zip", "w") as archive:
                         archive.writestr("policy.pth", buffer.getvalue())
 
-                first, second, third, fourth = load_policies(model_path)
-                for policy, expected in ((first, 0.1), (second, 0.2), (third, 0.3), (fourth, 0.4)):
+                top_left, top_right, bottom_left, bottom_right = load_policies(model_path)
+                for policy, expected in ((top_left, 0.1), (top_right, 0.2), (bottom_left, 0.3), (bottom_right, 0.4)):
                     for weight, bias in policy:
                         np.testing.assert_allclose(weight, expected, atol=1e-7)
                         np.testing.assert_allclose(bias, expected, atol=1e-7)
 
-                self.assertEqual(make_task_encoding(first).size, input_dim - 4)
+                for alpha, beta, expected in ((0, 1, 0.1), (1, 1, 0.2), (0, 0, 0.3), (1, 0, 0.4)):
+                    for weight, bias in combine(top_left, top_right, bottom_left, bottom_right, alpha, beta):
+                        np.testing.assert_allclose(weight, expected, atol=1e-7)
+                        np.testing.assert_allclose(bias, expected, atol=1e-7)
+
+                self.assertEqual(make_task_encoding(top_left).size, input_dim - 4)
                 obs = np.zeros((1, input_dim), dtype=np.float32)
                 reference = torch.as_tensor(obs)
-                for weight, bias in first[:-1]:
+                for weight, bias in top_left[:-1]:
                     reference = torch.relu(
                         torch.nn.functional.linear(
                             reference,
@@ -60,7 +66,7 @@ class LoadPoliciesTests(unittest.TestCase):
                             torch.as_tensor(np.asarray(bias).copy()),
                         )
                     )
-                weight, bias = first[-1]
+                weight, bias = top_left[-1]
                 reference = 3 * torch.tanh(
                     torch.nn.functional.linear(
                         reference,
@@ -68,7 +74,7 @@ class LoadPoliciesTests(unittest.TestCase):
                         torch.as_tensor(np.asarray(bias).copy()),
                     )
                 )
-                np.testing.assert_allclose(policy_fn(first, obs), reference.numpy(), rtol=1e-6)
+                np.testing.assert_allclose(policy_fn(top_left, obs), reference.numpy(), rtol=1e-6)
 
 
 if __name__ == "__main__":

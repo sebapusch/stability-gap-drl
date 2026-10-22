@@ -196,6 +196,7 @@ def evaluate_combination(
 
 
 def load_policies(model_path: str) -> tuple[MLP, MLP, MLP, MLP]:
+    """Return top-left, top-right, bottom-left, bottom-right grid policies."""
     models: dict[int, MLP] = {}
 
     for task_index in TASK_INDICES:
@@ -221,13 +222,14 @@ def load_policies(model_path: str) -> tuple[MLP, MLP, MLP, MLP]:
                 ]
 
     first, second, third = (models[task_index] for task_index in TASK_INDICES)
-    fourth = [
-        (third_layer[0] + second_layer[0] - first_layer[0],
-         third_layer[1] + second_layer[1] - first_layer[1])
+    # The right edge connects the successive checkpoints: second -> third.
+    bottom_left = [
+        (first_layer[0] + third_layer[0] - second_layer[0],
+         first_layer[1] + third_layer[1] - second_layer[1])
         for first_layer, second_layer, third_layer in zip(first, second, third)
     ]
 
-    return first, second, third, fourth
+    return first, second, bottom_left, third
 
 
 def make_task_encoding(policy: MLP) -> jax.Array:
