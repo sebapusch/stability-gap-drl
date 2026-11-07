@@ -13,7 +13,6 @@ defaults:
 plots:
   - title: 'SACD Multi Task (No Task ID, Adaptive entropy)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_auto-s_<s>-e_False'
         num_tasks: 1
@@ -35,7 +34,6 @@ plots:
 
   - title: 'SACD Multi Task (Task ID, Adaptive Entropy)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_auto-s_<s>-e_True'
         num_tasks: 1
@@ -57,7 +55,6 @@ plots:
 
   - title: 'SACD Multi Task (No Task ID, Max entropy)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_1-s_<s>-e_False'
         num_tasks: 1
@@ -79,7 +76,6 @@ plots:
 
   - title: 'SACD Multi Task (Task ID, Max Entropy)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sacd_cp_mt/sacd_cp_ji_mt-e_1-s_<s>-e_True'
         num_tasks: 1

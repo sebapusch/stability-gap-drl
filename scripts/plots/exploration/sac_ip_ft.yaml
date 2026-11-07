@@ -13,7 +13,6 @@ defaults:
 plots:
   - title: 'SAC Fine Tune (No Task ID)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sac_ip_ft/sac_ip_ft-e_auto-s_<s>-e_False'
         num_tasks: 3
@@ -35,7 +34,6 @@ plots:
 
   - title: 'SAC Fine Tune (Task ID)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sac_ip_ft/sac_ip_ft-e_auto-s_<s>-e_True'
         num_tasks: 3

@@ -13,7 +13,6 @@ defaults:
 plots:
   - title: 'DQN Fine Tune (No Task ID)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'dqn_cp_ft/dqn_cp_ft-s_<s>-e_False'
         num_tasks: 3
@@ -35,7 +34,6 @@ plots:
 
   - title: 'DQN Fine Tune (Task ID)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'dqn_cp_ft/dqn_cp_ft-s_<s>-e_True'
         num_tasks: 3

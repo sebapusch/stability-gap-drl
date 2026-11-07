@@ -19,7 +19,6 @@ plots:
         test_env: 0
         label: 'Task 1'
         color: "#E69F00"
-        linewidth: 1.5
         smooth: 50
 
       - method: 'sac_ip_ft/sac_ip_ft-e_auto-s_<s>-e_False'
@@ -27,7 +26,6 @@ plots:
         test_env: 1
         label: 'Task 2'
         color: "#56B4E9"
-        linewidth: 1.5
         smooth: 50
 
       - method: 'sac_ip_ft/sac_ip_ft-e_auto-s_<s>-e_False'
@@ -35,6 +33,5 @@ plots:
         test_env: 2
         label: 'Task 3'
         color: "#009E73"
-        linewidth: 1.5
         smooth: 50
 

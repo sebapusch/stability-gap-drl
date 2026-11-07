@@ -9,7 +9,6 @@ defaults:
   show_x_label: true
   show_y_label: true
   format: png
-# aggregation: mean
 
 plots:
   - title: 'DQN Joint Incremental (Task ID)'
@@ -20,7 +19,7 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#3A9AB2"
-        linewidth: 0.2
+        stroke_role: dense_raw_curve
         smooth: 1
 
       - method: 'dqn_cp_ji_encode_more_freq_eval/dqn_cp_ji-s_<s>'
@@ -28,7 +27,6 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#EBCC2A"
-        linewidth: 1
         smooth: 5
 
   - title: 'DQN Joint Incremental (Task ID)'
@@ -39,7 +37,7 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#3A9AB2"
-        linewidth: 0.5
+        stroke_role: raw_curve
         smooth: 1
 
       - method: 'dqn_cp_ji_encode_more_freq_eval/dqn_cp_ji-s_<s>'
@@ -47,5 +45,4 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#EBCC2A"
-        linewidth: 1.5
         smooth: 5

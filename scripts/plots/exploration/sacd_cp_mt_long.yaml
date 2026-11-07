@@ -13,7 +13,6 @@ defaults:
 plots:
   - title: 'SACD Multi Task (No Task ID, Adaptive entropy)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sacd_cp_mt_long/sacd_cp_ji_mt_long-s_<s>'
         num_tasks: 1

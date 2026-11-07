@@ -13,7 +13,6 @@ defaults:
 plots:
   - title: 'SAC Multi Task (No Task ID, Adaptive Entropy)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sac_ip_mt/sac_ip_mt-e_auto-s_<s>-e_False'
         num_tasks: 1
@@ -35,7 +34,6 @@ plots:
 
   - title: 'SAC Multi Task (Task ID, Adaptive Entropy)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sac_ip_mt/sac_ip_mt-e_auto-s_<s>-e_True'
         num_tasks: 1
@@ -57,7 +55,6 @@ plots:
 
   - title: 'SAC Multi Task (No Task ID, Max Entropy)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sac_ip_mt/sac_ip_mt-e_1-s_<s>-e_False'
         num_tasks: 1
@@ -79,7 +76,6 @@ plots:
 
   - title: 'SAC Multi Task (Task ID, Max Entropy)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sac_ip_mt/sac_ip_mt-e_1-s_<s>-e_True'
         num_tasks: 1

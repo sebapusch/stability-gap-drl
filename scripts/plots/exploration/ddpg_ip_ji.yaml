@@ -9,7 +9,6 @@ defaults:
   show_x_label: true
   show_y_label: true
   format: png
-# aggregation: mean
 
 plots:
   - title: 'DDPG Joint Incremental (No Task ID)'
@@ -20,7 +19,7 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#3A9AB2"
-        linewidth: 0.5
+        stroke_role: raw_curve
         smooth: 1
 
       - method: 'ddpg_ip_ji_no_encode/ddpg_ip_ji-s_<s>'
@@ -28,7 +27,6 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#EBCC2A"
-        linewidth: 1.5
         smooth: 5
 
   - title: 'DDPG Joint Incremental (No Task ID)'
@@ -39,7 +37,7 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#3A9AB2"
-        linewidth: 0.5
+        stroke_role: raw_curve
         smooth: 1
 
       - method: 'ddpg_ip_ji_no_encode/ddpg_ip_ji-s_<s>'
@@ -47,7 +45,6 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#EBCC2A"
-        linewidth: 1.5
         smooth: 5
 
 
@@ -60,7 +57,7 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#3A9AB2"
-        linewidth: 0.5
+        stroke_role: raw_curve
         smooth: 1
 
       - method: 'ddpg_ip_ji_encode/ddpg_ip_ji-s_<s>'
@@ -68,7 +65,6 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#EBCC2A"
-        linewidth: 1.5
         smooth: 5
 
   - title: 'DDPG Joint Incremental (Task ID)'
@@ -79,7 +75,7 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#3A9AB2"
-        linewidth: 0.5
+        stroke_role: raw_curve
         smooth: 1
 
       - method: 'ddpg_ip_ji_encode/ddpg_ip_ji-s_<s>'
@@ -87,5 +83,4 @@ plots:
         test_env: 0
         label: 'P(1)'
         color: "#EBCC2A"
-        linewidth: 1.5
         smooth: 5

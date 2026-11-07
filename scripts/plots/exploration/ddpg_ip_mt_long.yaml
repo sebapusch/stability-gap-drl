@@ -13,7 +13,6 @@ defaults:
 plots:
   - title: 'DDPG Multi Task (No Task ID)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'ddpg_ip_mt_long/ddpg_ip_mt_long-s_<s>'
         num_tasks: 1

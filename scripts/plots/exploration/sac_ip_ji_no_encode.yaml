@@ -9,7 +9,6 @@ defaults:
   show_x_label: true
   show_y_label: true
   format: png
-  # aggregation: mean
 
 plots:
   - title: 'SAC Joint Incremental (No Task ID, Adaptive Entropy)'
@@ -18,7 +17,7 @@ plots:
       - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_auto-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 0.5
+        stroke_role: raw_curve
         label: 'P(1)'
         color: "#3A9AB2"
         smooth: 1
@@ -27,7 +26,6 @@ plots:
         num_tasks: 3
         test_env: 0
         label: 'P(1)'
-        linewidth: 1.5
         color: "#EBCC2A"
         smooth: 15
 
@@ -37,7 +35,7 @@ plots:
       - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_auto-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 0.5
+        stroke_role: raw_curve
         label: 'P(1)'
         color: "#3A9AB2"
         smooth: 1
@@ -46,7 +44,6 @@ plots:
         num_tasks: 3
         test_env: 0
         label: 'P(1)'
-        linewidth: 1.5
         color: "#EBCC2A"
         smooth: 15
 
@@ -57,7 +54,7 @@ plots:
       - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_1-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 0.5
+        stroke_role: raw_curve
         label: 'P(1)'
         color: "#3A9AB2"
         smooth: 1
@@ -65,7 +62,6 @@ plots:
       - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_1-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 1.5
         label: 'P(2)'
         color: "#EBCC2A"
         smooth: 15
@@ -77,7 +73,7 @@ plots:
       - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_1-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 0.5
+        stroke_role: raw_curve
         label: 'P(1)'
         color: "#3A9AB2"
         smooth: 1
@@ -85,7 +81,6 @@ plots:
       - method: 'sac_ip_ji_no_encode/sac_ip_ji-e_1-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 1.5
         label: 'P(2)'
         color: "#EBCC2A"
         smooth: 15

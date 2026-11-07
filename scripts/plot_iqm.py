@@ -26,9 +26,20 @@ import matplotlib.pyplot as plt
 import matplotlib.transforms as mtransforms
 from matplotlib.ticker import FuncFormatter
 
-from common import (
-    compute_aggregate_curve,
-)
+if __package__:
+    from .common import compute_aggregate_curve
+    from .plot_style import (
+        apply_style, figure_size, export_figure, FONT_SIZE, STROKES, line_width,
+        TASK_LABEL_OFFSET_PT, TASK_XLABEL_PAD_PT,
+    )
+else:
+    from common import compute_aggregate_curve
+    from plot_style import (
+        apply_style, figure_size, export_figure, FONT_SIZE, STROKES, line_width,
+        TASK_LABEL_OFFSET_PT, TASK_XLABEL_PAD_PT,
+    )
+
+apply_style()
 
 try:
     import yaml
@@ -44,7 +55,6 @@ SEEDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 TRAIN_ENVS = ["0", "1", "2"]
 TEST_ENVS = ["0", "1", "2"]
 TIMESTEPS_PER_ENV = 40_000
-FS = 1.2
 X_LABEL = "Cumulative training timesteps"
 Y_LABELS = {
     "iqm": "IQM episodic return (95% CI)",
@@ -265,8 +275,8 @@ def load_config(path: str) -> dict:
                 or line["num_tasks"] <= 0
             ):
                 raise ValueError(f"Line {j} in plot {i} key 'num_tasks' must be a positive integer.")
-            if "linewidth" in line and not isinstance(line["linewidth"], (int, float)):
-                raise ValueError(f"Line {j} in plot {i} key 'linewidth' must be a number.")
+            if "stroke_role" in line and line["stroke_role"] not in STROKES:
+                raise ValueError("Unknown stroke_role; see plot_style.STROKES")
         zooms = plot.get("zooms")
         if zooms is not None:
             if not isinstance(zooms, list):
@@ -279,8 +289,8 @@ def load_config(path: str) -> dict:
                 raise ValueError(f"Plot entry {i} key '{key}' must be a boolean.")
         if "output_file" in plot and not isinstance(plot["output_file"], str):
             raise ValueError(f"Plot entry {i} key 'output_file' must be a string.")
-        if "linewidth" in plot and not isinstance(plot["linewidth"], (int, float)):
-            raise ValueError(f"Plot entry {i} key 'linewidth' must be a number.")
+        if "stroke_role" in plot and plot["stroke_role"] not in STROKES:
+            raise ValueError("Unknown stroke_role; see plot_style.STROKES")
         if plot.get("aggregation", "iqm") not in Y_LABELS:
             raise ValueError(
                 f"Plot entry {i} key 'aggregation' must be 'iqm', 'mean', or 'mean_ci'."
@@ -289,8 +299,8 @@ def load_config(path: str) -> dict:
         for key in ["format", "ext", "output_file", "output_dir"]:
             if key in cfg["defaults"] and not isinstance(cfg["defaults"][key], str):
                 raise ValueError(f"YAML config 'defaults' key '{key}' must be a string.")
-        if "linewidth" in cfg["defaults"] and not isinstance(cfg["defaults"]["linewidth"], (int, float)):
-            raise ValueError("YAML config 'defaults' key 'linewidth' must be a number.")
+        if "stroke_role" in cfg["defaults"] and cfg["defaults"]["stroke_role"] not in STROKES:
+            raise ValueError("Unknown stroke_role; see plot_style.STROKES")
         if cfg["defaults"].get("aggregation", "iqm") not in Y_LABELS:
             raise ValueError("YAML config 'defaults' key 'aggregation' must be 'iqm', 'mean', or 'mean_ci'.")
     return cfg
@@ -340,7 +350,6 @@ def _decorate_ax(ax, train_envs, timesteps_per_env, title=None, test_env=None, z
                  show_timesteps=True, show_y_label=True, show_x_label=True,
                  y_label=Y_LABELS["iqm"]):
     """Add environment boundary lines, labels, and grid to an axis."""
-    fs = FS
     x_lo, x_hi = ax.get_xlim()
 
     test_env_idx = None
@@ -354,9 +363,9 @@ def _decorate_ax(ax, train_envs, timesteps_per_env, title=None, test_env=None, z
             ax.axvline(
                 x=boundary,
                 color="black",
-                linestyle="-",
+                linestyle="--",
                 alpha=1,
-                linewidth=0.5,
+                linewidth=STROKES["task_boundary"],
                 zorder=5,
             )
 
@@ -371,15 +380,14 @@ def _decorate_ax(ax, train_envs, timesteps_per_env, title=None, test_env=None, z
             if test_env_idx is not None and test_env_idx > i:
                 continue
             center = (i + 0.5) * timesteps_per_env
-            ax.text(
-                center,
-                -0.08,
+            ax.annotate(
                 f"Task {i + 1}",
+                xy=(center, 0), xycoords=trans,
+                xytext=(0, -TASK_LABEL_OFFSET_PT), textcoords="offset points",
                 ha="center",
                 va="top",
-                fontsize=9 * fs,
+                fontsize=FONT_SIZE,
                 color="gray",
-                transform=trans,
             )
 
     if zoomed:
@@ -388,8 +396,8 @@ def _decorate_ax(ax, train_envs, timesteps_per_env, title=None, test_env=None, z
         if legend:
             legend.remove()
         if show_y_label:
-            ax.set_ylabel(y_label, fontsize=10 * fs)
-        ax.tick_params(axis="both", labelsize=10 * fs)
+            ax.set_ylabel(y_label, fontsize=FONT_SIZE)
+        ax.tick_params(axis="both", labelsize=FONT_SIZE)
         ax.tick_params(axis="x", labelbottom=show_timesteps)
         transition_ticks = [
             i * timesteps_per_env
@@ -416,16 +424,16 @@ def _decorate_ax(ax, train_envs, timesteps_per_env, title=None, test_env=None, z
         ax.xaxis.grid(False)
     else:
         if show_x_label:
-            task_label_pad = 34 if show_task_labels else 6
-            ax.set_xlabel(X_LABEL, fontsize=10 * fs, labelpad=task_label_pad)
+            task_label_pad = TASK_XLABEL_PAD_PT if show_task_labels else 6
+            ax.set_xlabel(X_LABEL, fontsize=FONT_SIZE, labelpad=task_label_pad)
         if show_y_label:
-            ax.set_ylabel(y_label, fontsize=10 * fs)
+            ax.set_ylabel(y_label, fontsize=FONT_SIZE)
         if title:
-            ax.set_title(title, pad=14, fontsize=11 * fs)
+            ax.set_title(title, pad=14, fontsize=FONT_SIZE)
         handles, labels = ax.get_legend_handles_labels()
         if handles:
-            ax.legend(handles, labels, loc="best", fontsize=9 * fs)
-        ax.tick_params(axis='both', labelsize=10 * fs)
+            ax.legend(handles, labels, loc="best", fontsize=FONT_SIZE)
+        ax.tick_params(axis='both', labelsize=FONT_SIZE)
         if not show_timesteps:
             ax.tick_params(axis='x', labelbottom=False)
         # Set x-ticks only at task boundaries and 0
@@ -448,7 +456,7 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
     zooms = plot_cfg["zooms"]
     n_zooms = len(zooms)
 
-    fig = plt.figure(figsize=(10, 8))
+    fig = plt.figure(figsize=figure_size("zoom", width=defaults.get("width_fraction", 1)))
     gs = gridspec.GridSpec(2, n_zooms, height_ratios=[1, 1.2])
 
     ax_zooms = [fig.add_subplot(gs[0, i]) for i in range(n_zooms)]
@@ -500,7 +508,7 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
         lower_smoothed = line_data["lower"].to_numpy()
         upper_smoothed = line_data["upper"].to_numpy()
 
-        linewidth = line_cfg.get("linewidth", plot_cfg.get("linewidth", defaults.get("linewidth", 0.7)))
+        linewidth = line_width(line_cfg, plot_cfg, defaults)
 
         # Plot on main
         ax_main.plot(ts, center_smoothed, label=label, color=color, linewidth=linewidth)
@@ -525,9 +533,9 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
                  show_timesteps=show_timesteps, show_y_label=False, show_x_label=show_x_label,
                  y_label=y_label)
     if title:
-        fig.suptitle(title, fontsize=11 * FS, y=0.965)
+        fig.suptitle(title, fontsize=FONT_SIZE, y=0.965)
     if show_y_label:
-        fig.supylabel(y_label, fontsize=10 * FS, x=0.015)
+        fig.supylabel(y_label, fontsize=FONT_SIZE, x=0.015)
 
     # Sync y limits and mark the ranges represented by the zoom panels.
     y_min, y_max = ax_main.get_ylim()
@@ -547,7 +555,7 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
         # also where the connector lines will terminate.
         rect = plt.Rectangle((z_start, y_min), z_end - z_start, y_max - y_min,
                              facecolor=(0, 0, 0, 0.035), edgecolor="0.3",
-                             linewidth=1.0, zorder=6)
+                             linewidth=STROKES["zoom_connector"], zorder=6)
         ax_main.add_patch(rect)
 
     # Leave a deliberate corridor between the zooms and the overview.  The
@@ -567,10 +575,10 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
 
         con_left = ConnectionPatch(xyA=(0, 0), xyB=(z_start, y_max), coordsA="axes fraction", coordsB="data",
                                    axesA=ax_zooms[i], axesB=ax_main, color="0.3", linestyle="--",
-                                   linewidth=1.0, clip_on=False, zorder=-1)
+                                   linewidth=STROKES["zoom_connector"], clip_on=False, zorder=-1)
         con_right = ConnectionPatch(xyA=(1, 0), xyB=(z_end, y_max), coordsA="axes fraction", coordsB="data",
                                     axesA=ax_zooms[i], axesB=ax_main, color="0.3", linestyle="--",
-                                    linewidth=1.0, clip_on=False, zorder=-1)
+                                    linewidth=STROKES["zoom_connector"], clip_on=False, zorder=-1)
         fig.add_artist(con_left)
         fig.add_artist(con_right)
 
@@ -587,7 +595,7 @@ def plot_zoom_figure(plot_cfg, cache_key, use_cache, seeds, envs, timesteps, env
         test_env_suffix = test_env if test_env else "mixed"
         out_path = plot_output_dir / f"{output_file}_{index + 1:02d}_{test_env_suffix}_zoom.{file_format}"
 
-    fig.savefig(out_path, dpi=dpi, bbox_inches="tight")
+    export_figure(fig, out_path, dpi=dpi)
     plt.close(fig)
     print(f"Saved zoom plot to {out_path}")
 
@@ -728,13 +736,10 @@ def plot_grid(config: dict, use_cache: bool):
         for p in grid_plots
     )
 
-    if any_zoomed:
-        fig_w = 7 * ncols
-        fig_h = 5 * nrows
-    else:
-        fig_w = 10 * ncols
-        fig_h = 5 * nrows
-    fig, axes = plt.subplots(nrows, ncols, figsize=(fig_w, fig_h), squeeze=False)
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=figure_size("cropped_curve" if any_zoomed else "curve",
+                                        rows=nrows, cols=ncols,
+                                        width=defaults.get("width_fraction", 1)), squeeze=False)
 
     for plot_idx, plot_cfg in enumerate(grid_plots):
         row = plot_idx // ncols
@@ -787,7 +792,7 @@ def plot_grid(config: dict, use_cache: bool):
             lower = line_data["lower"].to_numpy()
             upper = line_data["upper"].to_numpy()
 
-            linewidth = line_cfg.get("linewidth", plot_cfg.get("linewidth", defaults.get("linewidth", 0.7)))
+            linewidth = line_width(line_cfg, plot_cfg, defaults)
             ax.plot(ts, center, label=label, color=color, linewidth=linewidth)
             ax.fill_between(ts, lower, upper, alpha=0.2, color=color)
             n_lines_plotted += 1
@@ -819,7 +824,7 @@ def plot_grid(config: dict, use_cache: bool):
     plt.tight_layout()
     file_format = defaults.get("format", defaults.get("ext", "svg")).lstrip(".")
     out_path = plot_output_dir / f"{output_file}.{file_format}"
-    fig.savefig(out_path, dpi=dpi, bbox_inches="tight")
+    export_figure(fig, out_path, dpi=dpi)
     plt.close(fig)
     print(f"Saved {out_path}")
 
@@ -998,7 +1003,7 @@ def main():
         return
 
     for test_env in test_envs:
-        fig, ax = plt.subplots(figsize=(10, 5))
+        fig, ax = plt.subplots(figsize=figure_size("curve"))
 
         for idx, method in enumerate(methods):
             label = get_label(prefix)
@@ -1023,7 +1028,7 @@ def main():
             center = line_data["center"].to_numpy()
             lower = line_data["lower"].to_numpy()
             upper = line_data["upper"].to_numpy()
-            ax.plot(ts, center, label=label, color=color, linewidth=0.7)
+            ax.plot(ts, center, label=label, color=color, linewidth=STROKES["curve"])
             ax.fill_between(ts, lower, upper, alpha=0.2, color=color)
 
         zoomed = t_start is not None or t_end is not None
@@ -1045,7 +1050,7 @@ def main():
         parts.append(test_env)
         out_path = plot_output_dir / f"{'_'.join(parts)}.png"
 
-        fig.savefig(out_path, dpi=1000, bbox_inches="tight")
+        export_figure(fig, out_path, dpi=1000)
         plt.close(fig)
         print(f"Saved {out_path}")
 

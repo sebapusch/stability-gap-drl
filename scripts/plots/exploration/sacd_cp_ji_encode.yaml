@@ -19,7 +19,7 @@ plots:
       - method: 'sacd_cp_ji_encode/sacd_cp_ji-e_auto-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 0.5
+        stroke_role: raw_curve
         label: 'P(1)'
         color: "#3A9AB2"
         smooth: 1
@@ -28,7 +28,6 @@ plots:
         num_tasks: 3
         test_env: 0
         label: 'P(1)'
-        linewidth: 1.5
         color: "#EBCC2A"
         smooth: 5
 
@@ -38,7 +37,7 @@ plots:
       - method: 'sacd_cp_ji_encode/sacd_cp_ji-e_auto-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 0.5
+        stroke_role: raw_curve
         label: 'P(1)'
         color: "#3A9AB2"
         smooth: 1
@@ -47,7 +46,6 @@ plots:
         num_tasks: 3
         test_env: 0
         label: 'P(1)'
-        linewidth: 1.5
         color: "#EBCC2A"
         smooth: 5
 
@@ -58,7 +56,7 @@ plots:
       - method: 'sacd_cp_ji_encode/sacd_cp_ji-e_1-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 0.5
+        stroke_role: raw_curve
         label: 'P(1)'
         color: "#3A9AB2"
         smooth: 1
@@ -66,7 +64,6 @@ plots:
       - method: 'sacd_cp_ji_encode/sacd_cp_ji-e_1-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 1.5
         label: 'P(2)'
         color: "#EBCC2A"
         smooth: 5
@@ -78,7 +75,7 @@ plots:
       - method: 'sacd_cp_ji_encode/sacd_cp_ji-e_1-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 0.5
+        stroke_role: raw_curve
         label: 'P(1)'
         color: "#3A9AB2"
         smooth: 1
@@ -86,7 +83,6 @@ plots:
       - method: 'sacd_cp_ji_encode/sacd_cp_ji-e_1-s_<s>'
         num_tasks: 3
         test_env: 0
-        linewidth: 1.5
         label: 'P(2)'
         color: "#EBCC2A"
         smooth: 5

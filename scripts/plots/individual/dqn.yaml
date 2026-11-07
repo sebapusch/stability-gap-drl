@@ -9,7 +9,6 @@ defaults:
   show_x_label: true
   show_y_label: true
   format: png
-  # aggregation: mean
 
 plots:
   ### WITH TASK ID ###
@@ -21,7 +20,6 @@ plots:
         num_tasks: 1
         test_env: 0
         label: 'Task 1'
-        linewidth: 1.5
         color: "#4E79A7"
         smooth: 0
 
@@ -29,7 +27,6 @@ plots:
         num_tasks: 1
         test_env: 0
         label: 'Task 2'
-        linewidth: 1.5
         color: "#F28E2C"
         smooth: 0
 
@@ -37,7 +34,6 @@ plots:
         num_tasks: 1
         test_env: 0
         label: 'Task 3'
-        linewidth: 1.5
         color: "#E15759"
         smooth: 0
 

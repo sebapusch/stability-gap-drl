@@ -13,7 +13,6 @@ defaults:
 plots:
   - title: 'DQN Multi Task (No Task ID)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'dqn_cp_mt/dqn_cp_ji_mt-s_<s>-e_False'
         num_tasks: 1
@@ -35,7 +34,6 @@ plots:
 
   - title: 'DQN Multi Task (Task ID)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'dqn_cp_mt/dqn_cp_ji_mt-s_<s>-e_True'
         num_tasks: 1

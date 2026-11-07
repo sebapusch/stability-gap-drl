@@ -13,7 +13,6 @@ defaults:
 plots:
   - title: 'SACD Joint Incremental (No Task ID, Adaptive Entropy)'
     smooth: 15
-    linewidth: 1.6
     zooms:
       - t_start: 95_000
         t_end: 110_000
@@ -34,7 +33,6 @@ plots:
 
   - title: 'SACD Joint Incremental (Task ID, Adaptive Entropy)'
     smooth: 15
-    linewidth: 1.6
     zooms:
       - t_start: 95_000
         t_end: 110_000
@@ -55,7 +53,6 @@ plots:
         
   - title: 'SACD Joint Incremental (No Task ID, Max Entropy)'
     smooth: 15
-    linewidth: 1.6
     zooms:
       - t_start: 95_000
         t_end: 110_000
@@ -76,7 +73,6 @@ plots:
 
   - title: 'SACD Joint Incremental (Task ID, Max Entropy)'
     smooth: 15
-    linewidth: 1.6
     zooms:
       - t_start: 95_000
         t_end: 110_000
@@ -98,7 +94,6 @@ plots:
 
   - title: 'SACD Joint Incremental (No Task ID, alpha = 0.1)'
     smooth: 15
-    linewidth: 1.6
     zooms:
       - t_start: 95_000
         t_end: 110_000
@@ -119,7 +114,6 @@ plots:
 
   - title: 'SACD Joint Incremental (Task ID, alpha = 0.1)'
     smooth: 15
-    linewidth: 1.6
     zooms:
       - t_start: 95_000
         t_end: 110_000

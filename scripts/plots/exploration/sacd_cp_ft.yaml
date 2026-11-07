@@ -13,7 +13,6 @@ defaults:
 plots:
   - title: 'SACD Fine Tune (No Task ID)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sacd_cp_ft/sacd_cp_ft-e_auto-s_<s>-e_False'
         num_tasks: 3
@@ -35,7 +34,6 @@ plots:
 
   - title: 'SACD Fine Tune (Task ID)'
     smooth: 15
-    linewidth: 1.6
     lines:
       - method: 'sacd_cp_ft/sacd_cp_ft-e_auto-s_<s>-e_True'
         num_tasks: 3
