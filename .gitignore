@@ -215,3 +215,4 @@ output/*
 |output
 !output/.gitkeep
 !output/grid.png
+tests
