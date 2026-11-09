@@ -24,5 +24,5 @@ ji_reset_optim: false
 
 time: "20:00:00"
 
-ablations:
+sweeps:
   seed: 50

@@ -42,20 +42,20 @@ def process_yaml(yaml_path, dry):
                 or set(eval_modes) - {"random", "fixed"}):
             raise ValueError("eval_mode must be 'random', 'fixed', or [random, fixed]")
 
-    ablations = config.get("ablations", {})
+    sweeps = config.get("sweeps", {})
 
-    base_config = {k: v for k, v in config.items() if k != "ablations"}
+    base_config = {k: v for k, v in config.items() if k != "sweeps"}
     name_prefix_base = base_config.pop("name_prefix", "experiment")
 
-    keys = list(ablations.keys())
+    keys = list(sweeps.keys())
     values_lists = []
-    for k in ablations:
-        if isinstance(ablations[k], int):
-            values_lists.append(list(range(ablations[k])))
-        elif isinstance(ablations[k], list):
-            values_lists.append(ablations[k])
+    for k in sweeps:
+        if isinstance(sweeps[k], int):
+            values_lists.append(list(range(sweeps[k])))
+        elif isinstance(sweeps[k], list):
+            values_lists.append(sweeps[k])
         else:
-            values_lists.append([ablations[k]])
+            values_lists.append([sweeps[k]])
 
     if not keys:
         combinations = [()]

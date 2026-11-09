@@ -26,5 +26,5 @@ ji_reset_buffer: false
 
 time: "40:00:00"
 
-ablations:
+sweeps:
   seed: 50

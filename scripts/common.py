@@ -20,7 +20,7 @@ def parse_config(config_path: str) -> dict:
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
-    ablations = cfg.get("ablations", {})
+    sweeps = cfg.get("sweeps", {})
     num_tasks = cfg.get("num_tasks", 3)
     benchmark = cfg.get("benchmark")
     if benchmark is None:
@@ -31,7 +31,7 @@ def parse_config(config_path: str) -> dict:
         benchmark = [str(task) for task in benchmark]
     name_prefix = cfg.get("name_prefix", "experiment")
 
-    all_ablation_keys = list(ablations.keys())
+    all_ablation_keys = list(sweeps.keys())
 
     def ablation_values(value):
         # Match dispatch_yaml.py: a scalar integer denotes a count, not an ID.
@@ -41,10 +41,10 @@ def parse_config(config_path: str) -> dict:
             return value
         return [value]
 
-    seeds = ablation_values(ablations.get("seed", [0]))
+    seeds = ablation_values(sweeps.get("seed", [0]))
 
     hp_keys = [k for k in all_ablation_keys if k != "seed"]
-    hp_values = [ablation_values(ablations[k]) for k in hp_keys]
+    hp_values = [ablation_values(sweeps[k]) for k in hp_keys]
 
     project = cfg.get("project", name_prefix)
 

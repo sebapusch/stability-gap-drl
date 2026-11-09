@@ -20,6 +20,6 @@ ji_reset_optim: false
 
 time: "12:00:00"
 
-ablations:
+sweeps:
   ent_coef: ["auto", "1.0"]
   seed: 50
