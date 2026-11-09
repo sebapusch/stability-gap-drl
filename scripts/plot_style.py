@@ -49,6 +49,8 @@ ASPECTS = {
 # Minimum row height for YAML curves with per-panel axis labels and legends.
 CURVE_GRID_ROW_HEIGHT_IN = 2.0
 WIDTH_FRACTIONS = {"full": 1.0, "half": 0.5, "third": 1 / 3}
+# Change this to "below" to put the comparison legend on its own row.
+COMPARISON_LEGEND_PLACEMENT = "beside_xlabel"
 
 
 def figure_size(aspect="curve", *, width="full", rows=1, cols=1):
@@ -86,8 +88,34 @@ def apply_style():
     mpl.rcParams.update(settings)
 
 
-def bottom_legend(fig, handles, labels, *, ncol=3):
-    """Reserve an internal legend strip on a constrained-layout figure."""
+def bottom_legend(fig, handles, labels, *, ncol=3, placement="below"):
+    """Put a legend below the axes, optionally beside the figure x-axis label."""
+    if placement not in ("below", "beside_xlabel"):
+        raise ValueError("placement must be 'below' or 'beside_xlabel'")
+    if placement == "beside_xlabel":
+        xlabel = fig._supxlabel
+        if xlabel is None:
+            raise ValueError("beside_xlabel requires fig.supxlabel(...) first")
+        legend = fig.legend(handles, labels, frameon=False, loc="center right",
+                            ncol=ncol, bbox_to_anchor=(0.98, 0))
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        canvas_width = fig.get_figwidth() * fig.dpi
+        canvas_height = fig.get_figheight() * fig.dpi
+        legend_box = legend.get_window_extent(renderer)
+        label_box = xlabel.get_window_extent(renderer)
+        gap = 8 * fig.dpi / 72  # points; independent of export DPI
+        left = 0.98 - legend_box.width / canvas_width
+        label_right = left - gap / canvas_width
+        if label_right * canvas_width < label_box.width + gap:
+            raise ValueError("X label and legend do not fit beside each other at this width")
+        strip = (max(legend_box.height, label_box.height) + 12 * fig.dpi / 72) / canvas_height
+        center_y = strip / 2
+        fig.get_layout_engine().set(rect=(0, strip, 1, 1 - strip))
+        legend.set_bbox_to_anchor((0.98, center_y), transform=fig.transFigure)
+        fig.supxlabel(xlabel.get_text(), x=label_right, y=center_y,
+                     ha="right", va="center")
+        return legend
     legend_height = 0.25 / fig.get_figheight()
     strip = legend_height * (2 if fig._supxlabel is not None else 1)
     fig.get_layout_engine().set(rect=(0, strip, 1, 1 - strip))

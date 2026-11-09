@@ -4,6 +4,11 @@
 strokes, bottom-legend placement and fixed-canvas export. Apply the style before
 creating artists:
 
+For the multitask versus fine-tuning figure, set
+`COMPARISON_LEGEND_PLACEMENT` to `"beside_xlabel"` to put the task legend on the
+same row to the right of the x-axis label, or `"below"` to use a separate row.
+Rerun the notebook from its first code cell after changing this setting.
+
 ```python
 from scripts.plot_style import apply_style, figure_size, export_figure
 apply_style()
@@ -37,4 +42,3 @@ figures with a shared legend, `bottom_legend` reserves space inside the canvas.
   heatmap 1; heatmap row .75; heatmap with curve 5/7; benchmark 200/120.
   Grid ratios account for rows/columns; YAML curve grids reserve at least 2 inches
   per row for per-panel labels and legends. Ratios include margins and legends.
-
