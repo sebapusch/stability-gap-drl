@@ -24,5 +24,5 @@ ent_coef: "auto"
 time: "40:00:00"
 
 sweeps:
-  sac_reset_alpha: [false, true]
   seed: 50
+  sac_reset_alpha: [false, true]
