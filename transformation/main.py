@@ -78,8 +78,10 @@ def _build_dqn(
     balanced_sampling: bool,
     policy_kwargs: dict[str, Any],
     exploration_strategy: str = "eps-greedy",
+    dqn_reset_epsilon: bool = False,
     ji_reset_optim: bool = True,
     ji_reset_buffer: bool = True,
+    task_learning_starts: int = 0,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -111,6 +113,8 @@ def _build_dqn(
                 balanced_sampling=balanced_sampling,
                 reset_optim_on_task_change=ji_reset_optim,
                 reset_buffer_on_task_change=ji_reset_buffer,
+                task_learning_starts=task_learning_starts,
+                reset_epsilon_on_task_change=dqn_reset_epsilon,
                 **common_kwargs,
             )
         case _:
@@ -134,6 +138,7 @@ def _build_sacd(
     policy_kwargs: dict[str, Any],
     ji_reset_optim: bool = True,
     ji_reset_buffer: bool = True,
+    task_learning_starts: int = 0,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -160,6 +165,7 @@ def _build_sacd(
                 balanced_sampling=balanced_sampling,
                 reset_optim_on_task_change=ji_reset_optim,
                 reset_buffer_on_task_change=ji_reset_buffer,
+                task_learning_starts=task_learning_starts,
                 **common_kwargs,
             )
         case _:
@@ -183,6 +189,7 @@ def _build_sac(
     policy_kwargs: dict[str, Any],
     ji_reset_optim: bool = True,
     ji_reset_buffer: bool = True,
+    task_learning_starts: int = 0,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -209,6 +216,7 @@ def _build_sac(
                 balanced_sampling=balanced_sampling,
                 reset_optim_on_task_change=ji_reset_optim,
                 reset_buffer_on_task_change=ji_reset_buffer,
+                task_learning_starts=task_learning_starts,
                 **common_kwargs,
             )
         case _:
@@ -231,6 +239,7 @@ def _build_ddpg(
     policy_kwargs: dict[str, Any],
     ji_reset_optim: bool = True,
     ji_reset_buffer: bool = True,
+    task_learning_starts: int = 0,
     ddpg_action_noise_std: float = 0.0,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
@@ -269,6 +278,7 @@ def _build_ddpg(
                 n_tasks=n_tasks,
                 reset_optim_on_task_change=ji_reset_optim,
                 reset_buffer_on_task_change=ji_reset_buffer,
+                task_learning_starts=task_learning_starts,
                 **common_kwargs,
             )
         case _:
@@ -458,8 +468,10 @@ def main(
     mode: str = "continual",
     store_weights: bool = False,
     exploration_strategy: str = "eps-greedy",
+    dqn_reset_epsilon: bool = False,
     ji_reset_optim: bool = True,
     ji_reset_buffer: bool = True,
+    task_learning_starts: int = 0,
 ) -> None:
     bench = get_benchmark(env, seed, encode_task)
 
@@ -478,6 +490,7 @@ def main(
         balanced_sampling=balanced_sampling,
         ji_reset_optim=ji_reset_optim,
         ji_reset_buffer=ji_reset_buffer,
+        task_learning_starts=task_learning_starts,
         policy_kwargs=dict(
             optimizer_class=OPTIMIZERS[optimizer][0],
             optimizer_kwargs=OPTIMIZERS[optimizer][1],
@@ -491,6 +504,7 @@ def main(
         epsilon_end=epsilon_end,
         epsilon_decay_frac=epsilon_decay_frac,
         tau=dqn_tau,
+        dqn_reset_epsilon=dqn_reset_epsilon,
         exploration_strategy=exploration_strategy,
     )
 

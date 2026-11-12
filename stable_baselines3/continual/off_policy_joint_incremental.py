@@ -18,7 +18,14 @@ class OffPolicyJointIncremental(ContinualLearning):
             balanced_sampling: bool = False,
             reset_optim_on_task_change: bool = True,
             reset_buffer_on_task_change: bool = True,
+            task_learning_starts: int = 0,
     ) -> None:
+        if task_learning_starts < 0:
+            raise ValueError("task_learning_starts must be nonnegative")
+        # Fresh transitions per active task required after a task transition.
+        # This gates learning only; exploration and global timesteps are unchanged.
+        self.task_learning_starts = task_learning_starts
+        self._task_collection_steps: list[int] = []
         self.replay_buffer = MultiReplayBuffer(
             n_envs=n_tasks,
             buffer_size=buffer_size,
@@ -89,6 +96,7 @@ class OffPolicyJointIncremental(ContinualLearning):
                     log_interval=log_interval,
                 )
 
+                self._task_collection_steps[i] += rollout.episode_timesteps
                 self._save_env_obs_state(i)
 
                 if not rollout.continue_training:
@@ -97,7 +105,10 @@ class OffPolicyJointIncremental(ContinualLearning):
                 self.num_timesteps = num_timesteps
             self.num_timesteps += self.train_freq.frequency
 
-            if self.num_timesteps > 0 and self.num_timesteps > self.learning_starts:
+            refill_complete = self.task_ix == 0 or all(
+                steps >= self.task_learning_starts for steps in self._task_collection_steps
+            )
+            if self.num_timesteps > 0 and self.num_timesteps > self.learning_starts and refill_complete:
                 # If no `gradient_steps` is specified,
                 # do as many gradients steps as steps performed during the rollout
                 gradient_steps = self.gradient_steps if self.gradient_steps >= 0 else rollout.episode_timesteps
@@ -119,6 +130,7 @@ class OffPolicyJointIncremental(ContinualLearning):
         self.task_ix = task_ix
         self.set_env(env)
         self.envs.append(self.env)
+        self._task_collection_steps = [0] * len(self.envs)
         self._per_env_last_obs.append(None)
         self._per_env_last_episode_starts.append(None)
         self.set_logger(logger)

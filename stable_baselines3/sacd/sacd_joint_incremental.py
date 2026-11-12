@@ -14,6 +14,7 @@ class SACD_JointIncremental(OffPolicyJointIncremental, SACD):
             balanced_sampling: bool = False,
             reset_optim_on_task_change: bool = True,
             reset_buffer_on_task_change: bool = True,
+            task_learning_starts: int = 0,
             **kwargs
     ) -> None:
         kwargs['env'] = env
@@ -26,6 +27,7 @@ class SACD_JointIncremental(OffPolicyJointIncremental, SACD):
             balanced_sampling=balanced_sampling,
             reset_optim_on_task_change=reset_optim_on_task_change,
             reset_buffer_on_task_change=reset_buffer_on_task_change,
+            task_learning_starts=task_learning_starts,
         )
 
     def reset_optimizer(self) -> None:
