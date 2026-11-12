@@ -1,7 +1,5 @@
 # Stability Gap in Deep Reinforcement Learning
 
-![Observation transformations across benchmark tasks](output/grid.png)
-
 **Navigate:** [Benchmark](#benchmark) · [Experiments](#experiments-and-reproduction) · [Joint incremental learning](#joint-incremental-learning) · [Foundation](#foundation)
 
 ## Benchmark
