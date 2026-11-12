@@ -56,6 +56,8 @@ def get_args() -> Namespace:
 
     # ── SAC-specific ───────────────────────────────
     parser.add_argument("--ent_coef", default=None)
+    parser.add_argument("--sac_reset_alpha", action=argparse.BooleanOptionalAction, default=False,
+                        help="Reset learned SAC/SAC-D alpha to its initial value at each JI task transition; optimizer reset is controlled separately.")
 
     # DDPG-specific exploration noise (in normalized action units).
     parser.add_argument("--ddpg_action_noise_std", default=0.0, type=float)

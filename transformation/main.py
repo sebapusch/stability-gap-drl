@@ -139,6 +139,7 @@ def _build_sacd(
     ji_reset_optim: bool = True,
     ji_reset_buffer: bool = True,
     task_learning_starts: int = 0,
+    sac_reset_alpha: bool = False,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -166,6 +167,7 @@ def _build_sacd(
                 reset_optim_on_task_change=ji_reset_optim,
                 reset_buffer_on_task_change=ji_reset_buffer,
                 task_learning_starts=task_learning_starts,
+                reset_alpha_on_task_change=sac_reset_alpha,
                 **common_kwargs,
             )
         case _:
@@ -190,6 +192,7 @@ def _build_sac(
     ji_reset_optim: bool = True,
     ji_reset_buffer: bool = True,
     task_learning_starts: int = 0,
+    sac_reset_alpha: bool = False,
 ) -> ContinualLearning:
     policy_kwargs["net_arch"] = [network_size, network_size]
 
@@ -217,6 +220,7 @@ def _build_sac(
                 reset_optim_on_task_change=ji_reset_optim,
                 reset_buffer_on_task_change=ji_reset_buffer,
                 task_learning_starts=task_learning_starts,
+                reset_alpha_on_task_change=sac_reset_alpha,
                 **common_kwargs,
             )
         case _:
@@ -469,6 +473,7 @@ def main(
     store_weights: bool = False,
     exploration_strategy: str = "eps-greedy",
     dqn_reset_epsilon: bool = False,
+    sac_reset_alpha: bool = False,
     ji_reset_optim: bool = True,
     ji_reset_buffer: bool = True,
     task_learning_starts: int = 0,
@@ -511,11 +516,13 @@ def main(
     sac_build_kwargs = dict(
         **common_build_kwargs,
         ent_coef=ent_coef,
+        sac_reset_alpha=sac_reset_alpha,
     )
 
     sacd_build_kwargs = dict(
         **common_build_kwargs,
         ent_coef=ent_coef,
+        sac_reset_alpha=sac_reset_alpha,
     )
 
     ddpg_build_kwargs = dict(

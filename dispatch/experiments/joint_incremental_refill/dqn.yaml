@@ -4,7 +4,7 @@ algorithm: "dqn"
 env: "cartpole"
 method: "joint_incremental"
 batch_size: 128
-eval_freq: [10000, 15, 5000]
+eval_freq: [30000, 15, 250]
 eval_mode: "random"
 eval_all: false
 n_eval_episodes: 15
