@@ -17,6 +17,8 @@ task_learning_starts: 1000
 total_timesteps: 200_000
 network_size: 256
 epsilon_start: 1.0
+epsilon_end: 0.05
+epsilon_decay_frac: 0.1
 dqn_tau: 1.0
 store_weights: true
 encode_task: true
