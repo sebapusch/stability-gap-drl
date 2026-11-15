@@ -27,5 +27,3 @@ time: "40:00:00"
 sweeps:
   seed: 50
   dqn_reset_epsilon: [false, true]
-  epsilon_end: [0.05]
-  epsilon_decay_frac: [0.4]
