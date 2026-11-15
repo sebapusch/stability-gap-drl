@@ -3,28 +3,32 @@ defaults:
   seeds: 50
   timesteps: 200_000
   output_dir: joint_incremental
-  output_file: ji-dqn
+  output_file: ji-dqn-refill
   dpi: 500 # optional: default is 300
   show_timesteps: true
   show_x_label: true
   show_y_label: true
   format: png
   aggregation: mean_ci
+  stroke_role: "raw_curve"
 
 plots:
   - title: 'Task 1 performance'
     lines:
-      - method: 'joint_incremental/ji-dqn/ji-dqn-s_<s>'
+      - method: 'joint_incremental/ji-dqn-refill/ji-dqn-refill-s_<s>-d_False'
         num_tasks: 3
         test_env: 0
-        label: 'Task 1'
-        color: "#EBCC2A"
-        smooth: 5
+        label: '$\epsilon$ reset'
+        color: "#FF0000"
+        smooth: 100
+        preserve_drop_window: [1000, 1300]
 
-      - method: 'joint_incremental/ji-dqn/ji-dqn-s_<s>'
+      - method: 'joint_incremental/ji-dqn-refill/ji-dqn-refill-s_<s>-d_False'
         num_tasks: 3
         test_env: 1
-        label: 'Task 2'
+        label: '$\epsilon$ reset'
         color: "#FF0000"
-        smooth: 5
+        smooth: 100
+        preserve_drop_window: [1000, 1300]
+
 

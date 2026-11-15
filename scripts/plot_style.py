@@ -120,9 +120,9 @@ def bottom_legend(fig, handles, labels, *, ncol=3, placement="below"):
     strip = legend_height * (2 if fig._supxlabel is not None else 1)
     fig.get_layout_engine().set(rect=(0, strip, 1, 1 - strip))
     if fig._supxlabel is not None:
-        fig.supxlabel(fig._supxlabel.get_text(), y=legend_height + 0.01)
+        fig.supxlabel(fig._supxlabel.get_text(), y=legend_height + 0.03, x=.55)
     return fig.legend(handles, labels, frameon=False, loc="lower center",
-                      ncol=ncol, bbox_to_anchor=(0.5, 0))
+                      ncol=ncol, bbox_to_anchor=(0.55, 0.03))
 
 
 def export_figure(fig, path, **kwargs):

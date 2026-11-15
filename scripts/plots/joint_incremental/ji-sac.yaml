@@ -3,32 +3,33 @@ defaults:
   seeds: 50
   timesteps: 150_000
   output_dir: joint_incremental
-  output_file: ji-sac
+  output_file: ji-sac-refill
   dpi: 500 # optional: default is 300
   show_timesteps: true
   show_x_label: true
   show_y_label: true
   format: png
+  aggregation: mean_ci
+  stroke_role: "raw_curve"
 
 plots:
-  ### WITH TASK ID ###
-
   - title: 'Task 1 performance'
-    aggregation: mean_ci
     lines:
-      - method: 'joint_incremental/ji-sac/ji-sac-s_<s>'
+      - method: 'joint_incremental/ji-sac-refill/ji-sac-refill-s_<s>-s_False'
         num_tasks: 3
         test_env: 0
-        label: 'Task 1'
-        color: "#EBCC2A"
-        smooth: 30
+        label: '$\alpha$ reset'
+        color: "#FF0000"
+        smooth: 100
+        preserve_drop_window: [1000, 1300]
 
-      - method: 'joint_incremental/ji-sac/ji-sac-s_<s>'
+      - method: 'joint_incremental/ji-sac-refill/ji-sac-refill-s_<s>-s_False'
         num_tasks: 3
         test_env: 1
-        label: 'Task 2'
+        label: '$\alpha$ reset'
         color: "#FF0000"
-        smooth: 30
+        smooth: 100
+        preserve_drop_window: [1000, 1300]
 
 
 
