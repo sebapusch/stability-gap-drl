@@ -1,4 +1,4 @@
-# Stability Gap in Deep Reinforcement Learning
+# The Stability Gap in Continual Reinforcement Learning
 
 **Navigate:** [Benchmark](#benchmark) · [Experiments](#experiments-and-reproduction) · [Joint incremental learning](#joint-incremental-learning) · [Foundation](#foundation)
 
