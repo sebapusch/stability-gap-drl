@@ -25,7 +25,7 @@ An optional one-hot task identifier is appended **after** the observation transf
 
 ## Experiments and reproduction
 
-Experiment settings live in [`dispatch/experiments/`](dispatch/experiments/). The main joint incremental runs are in [`joint_incremental/`](dispatch/experiments/joint_incremental/); related controls and exploration studies are in [`joint_incremental_control/`](dispatch/experiments/joint_incremental_control/) and [`exploration/`](dispatch/experiments/exploration/). Training starts in [`transformation/main.py`](transformation/main.py).
+Experiment settings live in [`dispatch/experiments/`](dispatch/experiments/). The main joint incremental runs are in [`joint_incremental/`](dispatch/experiments/joint_incremental_control/joint_incremental/); related controls and exploration studies are in [`joint_incremental_control/`](dispatch/experiments/joint_incremental_control/) and [`exploration/`](dispatch/experiments/exploration/). Training starts in [`transformation/main.py`](transformation/main.py).
 
 From the repository root, install the locked dependencies with [uv](https://docs.astral.sh/uv/), then run a single local example:
 

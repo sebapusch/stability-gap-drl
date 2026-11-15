@@ -51,11 +51,19 @@ def get_args() -> Namespace:
     parser.add_argument("--dqn_tau", default=1.0, type=float)
     parser.add_argument("--exploration_strategy", default="eps-greedy", type=str, choices=["eps-greedy", "boltzmann"])
 
+    parser.add_argument("--dqn_reset_epsilon", action=argparse.BooleanOptionalAction, default=False,
+                        help="Restart DQN epsilon at each JI task transition, decaying over epsilon_decay_frac of the stage budget.")
+
     # ── SAC-specific ───────────────────────────────
     parser.add_argument("--ent_coef", default=None)
+    parser.add_argument("--sac_reset_alpha", action=argparse.BooleanOptionalAction, default=False,
+                        help="Reset learned SAC/SAC-D alpha to its initial value at each JI task transition; optimizer reset is controlled separately.")
 
     # DDPG-specific exploration noise (in normalized action units).
     parser.add_argument("--ddpg_action_noise_std", default=0.0, type=float)
+
+    parser.add_argument("--task_learning_starts", default=0, type=int,
+                        help="Fresh transitions per active task before JI updates resume after each task transition; does not restart exploration.")
 
     # ── JI-specific ───────────────────────────────
     parser.add_argument('--ji_reset_optim', action=argparse.BooleanOptionalAction, default=True)
